@@ -7,9 +7,10 @@ import { toast } from "sonner";
 type AuthProps = {
   onLogin: (email: string, password: string) => Promise<void>;
   onSignUp: (email: string, password: string) => Promise<void>;
+  onSocialAuth: (provider: 'google' | 'github') => Promise<void>;
 };
 
-const Auth = ({ onLogin, onSignUp }: AuthProps) => {
+const Auth = ({ onLogin, onSignUp, onSocialAuth }: AuthProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -21,7 +22,7 @@ const Auth = ({ onLogin, onSignUp }: AuthProps) => {
           <p className="text-muted-foreground mt-2">Track your financial growth over time</p>
         </div>
 
-        <AuthForm onLogin={onLogin} onSignUp={onSignUp} />
+        <AuthForm onLogin={onLogin} onSignUp={onSignUp} onSocialAuth={onSocialAuth} />
 
         <div className="mt-8">
           <Card>

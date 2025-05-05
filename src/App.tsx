@@ -15,10 +15,15 @@ import Layout from "./components/Layout";
 import { Category, Entry, TimelineEntry } from "./lib/types";
 import { currencies, getDefaultCurrency } from "./lib/currencyData";
 import { toast } from "sonner";
+import { supabase } from "./integrations/supabase/client";
+import { signInWithEmail, signUpWithEmail, signInWithSocial, signOut } from "./lib/auth";
+import { Session, User } from "@supabase/supabase-js";
 
 const queryClient = new QueryClient();
 
 const App = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
@@ -26,27 +31,79 @@ const App = () => {
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const defaultCurrency = getDefaultCurrency().code;
 
-  // Mock login functionality - will be replaced with Supabase
+  // Check for existing session and set up auth state listener
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session);
+    });
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("Auth state changed:", event);
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsAuthenticated(!!session);
+        
+        if (event === 'SIGNED_IN') {
+          toast.success("Successfully logged in!");
+        } else if (event === 'SIGNED_OUT') {
+          toast.success("Successfully logged out!");
+        }
+      }
+    );
+
+    // Cleanup
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Handle login with email
   const handleLogin = async (email: string, password: string) => {
-    // This will be implemented with Supabase auth
-    console.log("Login attempt:", { email, password });
-    setIsAuthenticated(true);
-    toast.success("Login successful!");
+    try {
+      await signInWithEmail(email, password);
+      // Auth state listener will handle the session update
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error;
+    }
   };
 
-  // Mock signup functionality - will be replaced with Supabase
+  // Handle sign-up with email
   const handleSignUp = async (email: string, password: string) => {
-    // This will be implemented with Supabase auth
-    console.log("Sign up attempt:", { email, password });
-    setIsAuthenticated(true);
-    toast.success("Account created successfully!");
+    try {
+      await signUpWithEmail(email, password);
+      toast.success("Account created successfully! Please check your email for verification.");
+    } catch (error) {
+      console.error("Signup error:", error);
+      throw error;
+    }
   };
 
-  // Mock logout functionality - will be replaced with Supabase
-  const handleLogout = () => {
-    // This will be implemented with Supabase auth
-    setIsAuthenticated(false);
-    toast.success("Logged out successfully!");
+  // Handle social authentication
+  const handleSocialAuth = async (provider: 'google' | 'github') => {
+    try {
+      await signInWithSocial(provider);
+      // The redirect will happen automatically, and auth state will be updated when user returns
+    } catch (error) {
+      console.error(`${provider} auth error:`, error);
+      throw error;
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      // Auth state listener will handle the session update
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Error logging out");
+    }
   };
 
   // Mock category management - will be replaced with Supabase
@@ -238,7 +295,11 @@ const App = () => {
                     />
                   </Layout>
                 ) : (
-                  <Auth onLogin={handleLogin} onSignUp={handleSignUp} />
+                  <Auth 
+                    onLogin={handleLogin} 
+                    onSignUp={handleSignUp} 
+                    onSocialAuth={handleSocialAuth}
+                  />
                 )
               }
             />
