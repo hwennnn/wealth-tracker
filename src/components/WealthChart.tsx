@@ -1,7 +1,23 @@
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Entry, TimelineEntry } from '@/lib/types';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Entry, TimelineEntry } from "@/lib/types";
+import {
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type WealthChartProps = {
   timelineData: TimelineEntry[];
@@ -9,25 +25,38 @@ type WealthChartProps = {
   currency: string;
 };
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884d8",
+  "#82ca9d",
+];
 
-const WealthChart = ({ timelineData, latestEntries, currency }: WealthChartProps) => {
+const WealthChart = ({
+  timelineData,
+  latestEntries,
+  currency,
+}: WealthChartProps) => {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-SG', {
-      style: 'currency',
+    return new Intl.NumberFormat("en-SG", {
+      style: "currency",
       currency: currency,
       maximumFractionDigits: 0,
     }).format(value);
   };
 
-  const lineChartData = timelineData.map(timeline => ({
-    date: new Date(timeline.date).toLocaleDateString(),
-    amount: timeline.total_amount
-  })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const lineChartData = timelineData
+    .map((timeline) => ({
+      date: new Date(timeline.date).toLocaleDateString(),
+      amount: timeline.total_amount,
+    }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const pieChartData = latestEntries.map((entry, index) => ({
     name: entry.notes || `Category ${index + 1}`,
-    value: entry.amount
+    value: entry.amount,
   }));
 
   return (
@@ -39,18 +68,21 @@ const WealthChart = ({ timelineData, latestEntries, currency }: WealthChartProps
         </CardHeader>
         <CardContent className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={lineChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart
+              data={lineChartData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis tickFormatter={formatCurrency} />
               <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Line 
-                type="monotone" 
-                dataKey="amount" 
-                stroke="#0EA5E9" 
-                strokeWidth={2} 
-                dot={{ r: 4 }} 
-                activeDot={{ r: 6 }} 
+              <Line
+                type="monotone"
+                dataKey="amount"
+                stroke="#0EA5E9"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -73,10 +105,15 @@ const WealthChart = ({ timelineData, latestEntries, currency }: WealthChartProps
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) =>
+                  `${name}: ${(percent * 100).toFixed(0)}%`
+                }
               >
                 {pieChartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
                 ))}
               </Pie>
               <Tooltip formatter={(value) => formatCurrency(Number(value))} />
