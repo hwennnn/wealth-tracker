@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { Provider } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
 // Email authentication
@@ -30,12 +29,12 @@ export async function signUpWithEmail(email: string, password: string) {
   return data;
 }
 
-// Social authentication
-export async function signInWithSocial(provider: Provider) {
+// GitHub authentication
+export async function signInWithSocial(provider: 'github') {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: window.location.origin,
+      redirectTo: 'https://pbssnvneqbbrggaqcqpa.supabase.co/auth/v1/callback',
     }
   });
   

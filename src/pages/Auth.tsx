@@ -2,12 +2,11 @@
 import AuthForm from "@/components/AuthForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartBar } from "lucide-react";
-import { toast } from "sonner";
 
 type AuthProps = {
   onLogin: (email: string, password: string) => Promise<void>;
   onSignUp: (email: string, password: string) => Promise<void>;
-  onSocialAuth: (provider: 'google' | 'github') => Promise<void>;
+  onSocialAuth: (provider: 'github') => Promise<void>;
 };
 
 const Auth = ({ onLogin, onSignUp, onSocialAuth }: AuthProps) => {

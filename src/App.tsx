@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -83,8 +84,8 @@ const App = () => {
     }
   };
 
-  // Handle social authentication
-  const handleSocialAuth = async (provider: 'google' | 'github') => {
+  // Handle GitHub authentication
+  const handleSocialAuth = async (provider: 'github') => {
     try {
       await signInWithSocial(provider);
       // The redirect will happen automatically, and auth state will be updated when user returns
