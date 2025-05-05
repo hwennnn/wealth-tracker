@@ -1,23 +1,22 @@
-
-import { useState, useEffect } from "react";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Categories from "./pages/Categories";
-import NewEntry from "./pages/NewEntry";
-import Entries from "./pages/Entries";
-import NotFound from "./pages/NotFound";
-import Layout from "./components/Layout";
-import { Category, Entry, TimelineEntry } from "./lib/types";
-import { currencies, getDefaultCurrency } from "./lib/currencyData";
-import { toast } from "sonner";
-import { supabase } from "./integrations/supabase/client";
-import { signInWithEmail, signUpWithEmail, signInWithSocial, signOut } from "./lib/auth";
-import { Session, User } from "@supabase/supabase-js";
+import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Session, User } from "@supabase/supabase-js";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { toast } from "sonner";
+import Layout from "./components/Layout";
+import { supabase } from "./integrations/supabase/client";
+import { signInWithEmail, signOut, signUpWithEmail } from "./lib/auth";
+import { currencies, getDefaultCurrency } from "./lib/currencyData";
+import { Category, Entry, TimelineEntry } from "./lib/types";
+import Auth from "./pages/Auth";
+import Categories from "./pages/Categories";
+import Dashboard from "./pages/Dashboard";
+import Entries from "./pages/Entries";
+import NewEntry from "./pages/NewEntry";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -41,20 +40,20 @@ const App = () => {
     });
 
     // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log("Auth state changed:", event);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsAuthenticated(!!session);
-        
-        if (event === 'SIGNED_IN') {
-          toast.success("Successfully logged in!");
-        } else if (event === 'SIGNED_OUT') {
-          toast.success("Successfully logged out!");
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event);
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session);
+
+      if (event === "SIGNED_IN") {
+        toast.success("Successfully logged in!");
+      } else if (event === "SIGNED_OUT") {
+        toast.success("Successfully logged out!");
       }
-    );
+    });
 
     // Cleanup
     return () => {
@@ -77,20 +76,11 @@ const App = () => {
   const handleSignUp = async (email: string, password: string) => {
     try {
       await signUpWithEmail(email, password);
-      toast.success("Account created successfully! Please check your email for verification.");
+      toast.success(
+        "Account created successfully! Please check your email for verification."
+      );
     } catch (error) {
       console.error("Signup error:", error);
-      throw error;
-    }
-  };
-
-  // Handle GitHub authentication
-  const handleSocialAuth = async (provider: 'github') => {
-    try {
-      await signInWithSocial(provider);
-      // The redirect will happen automatically, and auth state will be updated when user returns
-    } catch (error) {
-      console.error(`${provider} auth error:`, error);
       throw error;
     }
   };
@@ -106,31 +96,70 @@ const App = () => {
     }
   };
 
-  // Mock category management - will be replaced with Supabase
+  // Supabase category management
   const handleAddCategory = async (name: string, description: string) => {
-    const newCategory: Category = {
-      id: `cat-${Date.now()}`,
-      name,
-      description,
-      created_at: new Date().toISOString(),
-      user_id: 'current-user',
-    };
-    setCategories([...categories, newCategory]);
+    if (!user) return;
+
+    await supabase
+      .from("categories")
+      .insert([
+        {
+          name,
+          description,
+          user_id: user.id,
+        },
+      ])
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        console.log("🚀 ~ App ~ data:", data);
+        setCategories([...categories, data]);
+      });
   };
 
-  const handleUpdateCategory = async (id: string, name: string, description: string) => {
-    const updatedCategories = categories.map(category => 
-      category.id === id ? { ...category, name, description } : category
-    );
-    setCategories(updatedCategories);
+  const handleUpdateCategory = async (
+    id: string,
+    name: string,
+    description: string
+  ) => {
+    if (!user) return;
+
+    await supabase
+      .from("categories")
+      .update({ name, description })
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        const updatedCategories = categories.map((category) =>
+          category.id === id ? data : category
+        );
+        setCategories(updatedCategories);
+      });
   };
 
   const handleDeleteCategory = async (id: string) => {
-    const filteredCategories = categories.filter(category => category.id !== id);
-    setCategories(filteredCategories);
+    if (!user) return;
+
+    await supabase
+      .from("categories")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .then(({ error }) => {
+        if (error) throw error;
+
+        const filteredCategories = categories.filter(
+          (category) => category.id !== id
+        );
+        setCategories(filteredCategories);
+      });
   };
 
-  // Mock entry management - will be replaced with Supabase
+  // Supabase entry management
   const handleAddEntry = async (data: {
     categoryId: string;
     amount: number;
@@ -138,46 +167,55 @@ const App = () => {
     date: Date;
     notes: string;
   }) => {
-    const categoryName = categories.find(c => c.id === data.categoryId)?.name || 'Unknown';
-    
-    const newEntry: Entry = {
-      id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      category_id: data.categoryId,
-      amount: data.amount,
-      currency: data.currencyCode,
-      date: data.date.toISOString(),
-      notes: data.notes || categoryName,
-      user_id: 'current-user',
-    };
+    if (!user) return;
+
+    const { data: entryData, error } = await supabase
+      .from("entries")
+      .insert([
+        {
+          category_id: data.categoryId,
+          amount: data.amount,
+          currency: data.currencyCode,
+          date: data.date.toISOString(),
+          notes: data.notes,
+          user_id: user.id,
+        },
+      ])
+      .select();
+
+    if (error) throw error;
 
     // Check if there's an existing timeline entry for this date
     const existingTimelineIndex = timelineEntries.findIndex(
-      t => new Date(t.date).toDateString() === data.date.toDateString()
+      (t) => new Date(t.date).toDateString() === data.date.toDateString()
     );
 
     if (existingTimelineIndex >= 0) {
       // Add to existing timeline entry
       const updatedTimeline = [...timelineEntries];
       const timeline = updatedTimeline[existingTimelineIndex];
-      
+
       // Add new entry
-      timeline.entries = [...timeline.entries, newEntry];
-      
+      timeline.entries = [...timeline.entries, entryData[0]];
+
       // Recalculate total (assuming same currency for simplicity)
-      timeline.total_amount = timeline.entries.reduce((sum, entry) => sum + entry.amount, 0);
-      
+      timeline.total_amount = timeline.entries.reduce(
+        (sum, entry) => sum + entry.amount,
+        0
+      );
+
       setTimelineEntries(updatedTimeline);
     } else {
       // Create new timeline entry
       const newTimelineEntry: TimelineEntry = {
         id: `timeline-${Date.now()}`,
         date: data.date.toISOString(),
-        entries: [newEntry],
+        entries: [entryData[0]],
         total_amount: data.amount,
         currency: data.currencyCode,
-        user_id: 'current-user',
+        user_id: user.id,
       };
-      
+
       setTimelineEntries([...timelineEntries, newTimelineEntry]);
     }
 
@@ -186,21 +224,31 @@ const App = () => {
   };
 
   const handleDeleteTimelineEntry = async (id: string) => {
-    const filteredEntries = timelineEntries.filter(entry => entry.id !== id);
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("entries")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+
+    const filteredEntries = timelineEntries.filter((entry) => entry.id !== id);
     setTimelineEntries(filteredEntries);
-    
+
     // Update latest entries and total
     updateLatestEntries();
   };
 
   // Update latest entries and total based on the most recent timeline entry
-  const updateLatestEntries = () => {
+  const updateLatestEntries = useCallback(() => {
     if (timelineEntries.length > 0) {
       // Find the most recent timeline entry
       const sortedEntries = [...timelineEntries].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-      
+
       const mostRecent = sortedEntries[0];
       setLatestEntries(mostRecent.entries);
       setTotalAmount(mostRecent.total_amount);
@@ -208,72 +256,67 @@ const App = () => {
       setLatestEntries([]);
       setTotalAmount(0);
     }
-  };
+  }, [timelineEntries]);
 
-  // Initialize with some sample data for demo purposes
+  // Fetch categories and timeline entries when authenticated
   useEffect(() => {
-    if (isAuthenticated && categories.length === 0) {
-      const sampleCategories: Category[] = [
-        {
-          id: 'cat-savings',
-          name: 'Savings',
-          description: 'Bank savings accounts',
-          created_at: new Date().toISOString(),
-          user_id: 'current-user',
-        },
-        {
-          id: 'cat-investments',
-          name: 'Investments',
-          description: 'Stocks, ETFs, and other investments',
-          created_at: new Date().toISOString(),
-          user_id: 'current-user',
-        },
-      ];
-      setCategories(sampleCategories);
+    if (isAuthenticated && user) {
+      const fetchCategories = async () => {
+        const { data, error } = await supabase
+          .from("categories")
+          .select("*")
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error("Error fetching categories:", error);
+          return;
+        }
+
+        setCategories(data || []);
+      };
+
+      const fetchTimelineEntries = async () => {
+        const { data: entriesData, error } = await supabase
+          .from("entries")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("date", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching entries:", error);
+          return;
+        }
+
+        // Group entries by date
+        const groupedEntries = entriesData.reduce((acc, entry) => {
+          const dateStr = new Date(entry.date).toDateString();
+          if (!acc[dateStr]) {
+            acc[dateStr] = {
+              id: `timeline-${Date.now()}`,
+              date: entry.date,
+              entries: [],
+              total_amount: 0,
+              currency: entry.currency,
+              user_id: entry.user_id,
+            };
+          }
+          acc[dateStr].entries.push(entry);
+          acc[dateStr].total_amount += entry.amount;
+          return acc;
+        }, {});
+
+        setTimelineEntries(Object.values(groupedEntries));
+      };
+
+      fetchCategories();
+      fetchTimelineEntries();
     }
-  }, [isAuthenticated, categories.length]);
-
-  // Syncing with local storage - temporary solution before Supabase integration
-  useEffect(() => {
-    // Simulate loading data from local storage
-    const storedAuth = localStorage.getItem('wealthTrackerAuth');
-    if (storedAuth === 'true') {
-      setIsAuthenticated(true);
-    }
-
-    // Load sample data if authenticated
-    if (isAuthenticated) {
-      // Here we would normally fetch from Supabase
-      const storedCategories = localStorage.getItem('wealthTrackerCategories');
-      const storedTimelineEntries = localStorage.getItem('wealthTrackerTimeline');
-
-      if (storedCategories) {
-        setCategories(JSON.parse(storedCategories));
-      }
-
-      if (storedTimelineEntries) {
-        const parsedTimeline = JSON.parse(storedTimelineEntries);
-        setTimelineEntries(parsedTimeline);
-        updateLatestEntries();
-      }
-    }
-  }, [isAuthenticated]);
-
-  // Save to local storage when data changes - temporary before Supabase
-  useEffect(() => {
-    if (isAuthenticated) {
-      localStorage.setItem('wealthTrackerAuth', 'true');
-      localStorage.setItem('wealthTrackerCategories', JSON.stringify(categories));
-      localStorage.setItem('wealthTrackerTimeline', JSON.stringify(timelineEntries));
-    } else {
-      localStorage.removeItem('wealthTrackerAuth');
-    }
-  }, [isAuthenticated, categories, timelineEntries]);
+  }, [isAuthenticated, user]);
 
   // Update latest entries whenever timeline entries change
   useEffect(() => {
     updateLatestEntries();
-  }, [timelineEntries]);
+  }, [timelineEntries, updateLatestEntries]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -295,11 +338,7 @@ const App = () => {
                     />
                   </Layout>
                 ) : (
-                  <Auth 
-                    onLogin={handleLogin} 
-                    onSignUp={handleSignUp} 
-                    onSocialAuth={handleSocialAuth}
-                  />
+                  <Auth onLogin={handleLogin} onSignUp={handleSignUp} />
                 )
               }
             />

@@ -1,4 +1,3 @@
-
 export type Currency = {
   code: string;
   name: string;
@@ -13,7 +12,7 @@ export type Category = {
   user_id: string;
 };
 
-export type Entry = {
+export type BaseEntry = {
   id: string;
   category_id: string;
   amount: number;
@@ -23,10 +22,12 @@ export type Entry = {
   user_id: string;
 };
 
+export type Entry = BaseEntry;
+
 export type TimelineEntry = {
   id: string;
   date: string;
-  entries: Entry[];
+  entries: BaseEntry[];
   total_amount: number;
   currency: string;
   user_id: string;
