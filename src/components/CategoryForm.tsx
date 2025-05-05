@@ -1,11 +1,16 @@
-
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useState } from "react";
+import { toast } from "sonner";
 
 type CategoryFormProps = {
   onSubmit: (name: string, description: string) => Promise<void>;
@@ -14,11 +19,11 @@ type CategoryFormProps = {
   buttonText?: string;
 };
 
-const CategoryForm = ({ 
-  onSubmit, 
-  initialName = '', 
-  initialDescription = '', 
-  buttonText = 'Create Category' 
+const CategoryForm = ({
+  onSubmit,
+  initialName = "",
+  initialDescription = "",
+  buttonText = "Create Category",
 }: CategoryFormProps) => {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
@@ -27,7 +32,7 @@ const CategoryForm = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error('Please enter a category name');
+      toast.error("Please enter a category name");
       return;
     }
 
@@ -35,21 +40,27 @@ const CategoryForm = ({
       setIsLoading(true);
       await onSubmit(name, description);
       if (!initialName) {
-        setName('');
-        setDescription('');
+        setName("");
+        setDescription("");
       }
-      toast.success(`Category ${initialName ? 'updated' : 'created'} successfully`);
+      toast.success(
+        `Category ${initialName ? "updated" : "created"} successfully`
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save category');
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save category"
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Card>
+    <Card className="border-primary/20">
       <CardHeader>
-        <CardTitle>{initialName ? 'Edit Category' : 'Create New Category'}</CardTitle>
+        <CardTitle>
+          {initialName ? "Edit Category" : "Create New Category"}
+        </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -75,8 +86,12 @@ const CategoryForm = ({
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? 'Saving...' : buttonText}
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-primary hover:bg-primary/90"
+          >
+            {isLoading ? "Saving..." : buttonText}
           </Button>
         </CardFooter>
       </form>
