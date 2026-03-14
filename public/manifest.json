@@ -1,0 +1,16 @@
+{
+  "name": "WealthTracker",
+  "short_name": "WealthTracker",
+  "description": "Track your wealth across multiple currencies and categories",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#3366CC",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
