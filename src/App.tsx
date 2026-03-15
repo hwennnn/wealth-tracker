@@ -454,33 +454,44 @@ const AuthenticatedApp = () => {
   );
 };
 
-const clerkAppearance = {
-  variables: {
-    colorPrimary: "hsl(220, 70%, 50%)",
-    colorText: "hsl(224, 71%, 4%)",
-    colorTextSecondary: "hsl(220, 9%, 46%)",
-    colorBackground: "hsl(0, 0%, 100%)",
-    colorInputBackground: "hsl(0, 0%, 100%)",
-    colorInputText: "hsl(224, 71%, 4%)",
-    borderRadius: "0.75rem",
-    fontFamily: "inherit",
-  },
-  elements: {
-    card: "shadow-none border rounded-2xl",
-    socialButtonsBlockButton: "border font-medium",
-    formButtonPrimary: "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm",
-    footerActionLink: "text-primary hover:text-primary/80",
-    headerTitle: "text-xl font-semibold",
-    headerSubtitle: "text-sm text-muted-foreground",
-    formFieldLabel: "text-xs font-medium",
-    formFieldInput: "h-10 border rounded-lg",
-    dividerLine: "bg-border",
-    dividerText: "text-muted-foreground text-xs",
-    userButtonAvatarBox: "h-8 w-8",
-  },
-};
+function useClerkAppearance() {
+  const isDark = document.documentElement.classList.contains("dark");
+  return {
+    variables: {
+      colorPrimary: "hsl(220, 70%, 50%)",
+      colorText: isDark ? "hsl(210, 40%, 98%)" : "hsl(224, 71%, 4%)",
+      colorTextSecondary: isDark ? "hsl(218, 11%, 55%)" : "hsl(220, 9%, 46%)",
+      colorBackground: isDark ? "hsl(225, 40%, 8%)" : "hsl(0, 0%, 100%)",
+      colorInputBackground: isDark ? "hsl(225, 30%, 14%)" : "hsl(0, 0%, 100%)",
+      colorInputText: isDark ? "hsl(210, 40%, 98%)" : "hsl(224, 71%, 4%)",
+      borderRadius: "0.75rem",
+      fontFamily: "inherit",
+    },
+    elements: {
+      card: "shadow-none border rounded-2xl",
+      socialButtonsBlockButton: "border font-medium",
+      formButtonPrimary:
+        "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm",
+      footerActionLink: "text-primary hover:text-primary/80",
+      headerTitle: "text-xl font-semibold",
+      headerSubtitle: "text-sm text-muted-foreground",
+      formFieldLabel: "text-xs font-medium",
+      formFieldInput: "h-10 border rounded-lg",
+      dividerLine: "bg-border",
+      dividerText: "text-muted-foreground text-xs",
+      userButtonAvatarBox: "h-8 w-8",
+      userButtonPopoverCard: isDark
+        ? "bg-[hsl(225,40%,8%)] border"
+        : undefined,
+      userButtonPopoverActionButton: isDark
+        ? "text-[hsl(210,40%,98%)] hover:bg-[hsl(225,30%,14%)]"
+        : undefined,
+    },
+  };
+}
 
 const App = () => {
+  const clerkAppearance = useClerkAppearance();
   return (
     <ClerkProvider
       publishableKey={CLERK_PUBLISHABLE_KEY}
