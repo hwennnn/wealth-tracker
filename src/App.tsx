@@ -2,7 +2,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -11,9 +11,10 @@ import {
   SignedOut,
   useUser,
   useClerk,
+  useAuth,
 } from "@clerk/clerk-react";
 import Layout from "./components/Layout";
-import { supabase } from "./integrations/supabase/client";
+import { createClerkSupabaseClient } from "./integrations/supabase/client";
 import { currencies } from "./lib/currencyData";
 import { fetchExchangeRates, getDisplayCurrency } from "./lib/currency";
 import { migrateUserData } from "./lib/auth";
@@ -35,7 +36,13 @@ const queryClient = new QueryClient();
 const AuthenticatedApp = () => {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { getToken } = useAuth();
   const userId = user?.id ?? null;
+
+  const supabase = useMemo(
+    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
+    [getToken]
+  );
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
@@ -240,7 +247,7 @@ const AuthenticatedApp = () => {
 
     const fetchData = async () => {
       // Run one-time migration from Supabase auth user_id to Clerk user_id
-      await migrateUserData(userId);
+      await migrateUserData(supabase, userId);
 
       const [catResult, entryResult] = await Promise.all([
         supabase.from("categories").select("*").eq("user_id", userId),
