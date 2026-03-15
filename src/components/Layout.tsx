@@ -1,10 +1,10 @@
 import { ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
+import { UserButton } from "@clerk/clerk-react";
 import {
   LayoutDashboard,
   Plus,
-  LogOut,
   Tag,
   List,
   TrendingUp,
@@ -30,11 +30,11 @@ import { useTheme } from "@/hooks/use-theme";
 
 type LayoutProps = {
   children: ReactNode;
-  onLogout: () => void;
+  onLogout?: () => void;
   onCurrencyChange?: (code: string) => void;
 };
 
-const Layout = ({ children, onLogout, onCurrencyChange }: LayoutProps) => {
+const Layout = ({ children, onCurrencyChange }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [displayCurrency, setLocalCurrency] = useState(getDisplayCurrency());
@@ -165,14 +165,13 @@ const Layout = ({ children, onLogout, onCurrencyChange }: LayoutProps) => {
               <span className="hidden sm:inline">New Entry</span>
             </Button>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onLogout}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "h-8 w-8",
+                },
+              }}
+            />
           </div>
         </div>
 
