@@ -4,6 +4,8 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 
 **Live:** [wealth.hwendev.com](https://wealth.hwendev.com) | **Status:** [status.hwendev.com](https://status.hwendev.com/status/wealth-tracker)
 
+![WealthTracker Dashboard](docs/dashboard.png)
+
 ## Features
 
 - **Multi-currency support** — Track assets in SGD, USD, EUR, and more with live exchange rate conversion
