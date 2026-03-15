@@ -113,8 +113,17 @@ const Auth = () => {
         </div>
       </div>
 
-      <footer className="px-6 py-4 text-center text-xs text-muted-foreground">
-        WealthTracker &copy; {new Date().getFullYear()} &middot;{" "}
+      <footer className="px-6 py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-3">
+        <span>WealthTracker &copy; {new Date().getFullYear()}</span>
+        <span>&middot;</span>
+        <a href="/privacy" className="hover:text-foreground transition-colors">
+          Privacy
+        </a>
+        <span>&middot;</span>
+        <a href="/terms" className="hover:text-foreground transition-colors">
+          Terms
+        </a>
+        <span>&middot;</span>
         <a
           href="https://status.hwendev.com/status/wealth-tracker"
           target="_blank"

@@ -220,6 +220,18 @@ const Layout = ({ children, onLogout, onCurrencyChange }: LayoutProps) => {
             </div>
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <a
+                href="/privacy"
+                className="hover:text-foreground transition-colors"
+              >
+                Privacy
+              </a>
+              <a
+                href="/terms"
+                className="hover:text-foreground transition-colors"
+              >
+                Terms
+              </a>
+              <a
                 href="https://status.hwendev.com/status/wealth-tracker"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -229,7 +241,7 @@ const Layout = ({ children, onLogout, onCurrencyChange }: LayoutProps) => {
                 Status
               </a>
               <a
-                href="https://github.com/hwennnn/wealth-timeline-tracker"
+                href="https://github.com/hwennnn/wealth-tracker"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 hover:text-foreground transition-colors"

@@ -24,6 +24,8 @@ import Dashboard from "./pages/Dashboard";
 import Entries from "./pages/Entries";
 import NewEntry from "./pages/NewEntry";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import Onboarding from "./components/Onboarding";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
@@ -428,6 +430,8 @@ const App = () => {
             <Toaster />
             <Sonner />
             <Routes>
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route
                 path="/*"
                 element={
