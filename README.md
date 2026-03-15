@@ -19,6 +19,7 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 - **Guided onboarding** — New users get a category selection flow to get started quickly
 - **Edit entries** — Update any asset entry directly from the entries view
 - **Mobile responsive** — Works on desktop, tablet, and mobile
+- **Social auth** — Sign in with email, Google, or GitHub via Clerk
 
 ## Tech Stack
 
@@ -28,10 +29,10 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 | Build | Vite |
 | Styling | Tailwind CSS + shadcn/ui |
 | Charts | Recharts |
-| Auth | Clerk |
-| Database | Supabase (PostgreSQL) |
+| Auth | Clerk (with JWT integration) |
+| Database | Supabase (PostgreSQL) with RLS |
 | Exchange Rates | ExchangeRate-API |
-| Deployment | Docker + Coolify |
+| Deployment | Docker (nginx) + Coolify |
 
 ## Getting Started
 
@@ -42,79 +43,100 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 - A [Supabase](https://supabase.com) project (for the database)
 - An [ExchangeRate-API](https://www.exchangerate-api.com/) key (free tier works)
 
-> For detailed setup instructions (Clerk, Supabase schema, RLS policies, deployment), see **[docs/SETUP.md](docs/SETUP.md)**.
+> For detailed setup instructions (Clerk JWT, Supabase schema, RLS policies, deployment), see **[docs/SETUP.md](docs/SETUP.md)**.
 
-### Setup
+### Quick Start
 
 ```bash
 # Clone the repo
-git clone https://github.com/hwennnn/wealth-timeline-tracker.git
-cd wealth-timeline-tracker
+git clone https://github.com/hwennnn/wealth-tracker.git
+cd wealth-tracker
 
 # Install dependencies
 npm install
+
+# Copy env file and fill in your keys
+cp .env.example .env
 
 # Start dev server
 npm run dev
 ```
 
-### Environment
+### Environment Variables
 
-The app expects the following configuration (currently hardcoded in source — see below for where to update):
+Create a `.env` file (see `.env.example`):
 
-| Config | File | Description |
-|--------|------|-------------|
-| Clerk Publishable Key | `src/App.tsx` | Your Clerk frontend key |
-| Supabase URL | `src/integrations/supabase/client.ts` | Your Supabase project URL |
-| Supabase Anon Key | `src/integrations/supabase/client.ts` | Your Supabase anon/public key |
-| Exchange Rate API Key | `src/lib/currency.ts` | Free API key from exchangerate-api.com |
+```env
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_EXCHANGE_RATE_API_KEY=your-exchangerate-api-key
+```
 
 ### Database Schema
 
-The app uses three tables in Supabase:
+Run in **Supabase SQL Editor**:
 
 ```sql
--- User profiles
-CREATE TABLE profiles (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
-  name TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Asset categories (e.g., Savings, Investments, Crypto)
 CREATE TABLE categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  description TEXT,
+  description TEXT DEFAULT '',
   user_id TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Individual asset entries
 CREATE TABLE entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id UUID REFERENCES categories(id),
+  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   amount NUMERIC NOT NULL,
-  currency TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'SGD',
   date TIMESTAMPTZ NOT NULL,
-  notes TEXT,
+  notes TEXT DEFAULT '',
   user_id TEXT NOT NULL
 );
+
+CREATE INDEX idx_categories_user_id ON categories(user_id);
+CREATE INDEX idx_entries_user_id ON entries(user_id);
+CREATE INDEX idx_entries_date ON entries(date DESC);
+```
+
+### Row Level Security
+
+The app uses Clerk JWTs to authenticate Supabase requests. After setting up the Clerk JWT template (see [docs/SETUP.md](docs/SETUP.md)):
+
+```sql
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own categories" ON categories FOR SELECT USING (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can insert own categories" ON categories FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can update own categories" ON categories FOR UPDATE USING (auth.jwt() ->> 'sub' = user_id) WITH CHECK (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can delete own categories" ON categories FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
+
+CREATE POLICY "Users can view own entries" ON entries FOR SELECT USING (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can insert own entries" ON entries FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can update own entries" ON entries FOR UPDATE USING (auth.jwt() ->> 'sub' = user_id) WITH CHECK (auth.jwt() ->> 'sub' = user_id);
+CREATE POLICY "Users can delete own entries" ON entries FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
 ```
 
 ### Docker Deployment
-
-The project includes a multi-stage Dockerfile for production:
 
 ```bash
 docker build -t wealth-tracker .
 docker run -p 80:80 wealth-tracker
 ```
 
-The final image is ~25MB (nginx + static files).
+Pass env vars as build args (Vite embeds them at build time):
+
+```bash
+docker build \
+  --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxx \
+  --build-arg VITE_SUPABASE_URL=https://xxx.supabase.co \
+  --build-arg VITE_SUPABASE_ANON_KEY=xxx \
+  --build-arg VITE_EXCHANGE_RATE_API_KEY=xxx \
+  -t wealth-tracker .
+```
 
 ## Project Structure
 
@@ -131,6 +153,8 @@ src/
 │   └── WealthSummaryCard # Net worth card with MoM change
 ├── hooks/
 │   └── use-theme        # Dark/light/system theme
+├── integrations/
+│   └── supabase/        # Supabase client (with Clerk JWT auth)
 ├── lib/
 │   ├── auth             # Clerk migration helpers
 │   ├── csv              # CSV import/export
@@ -143,7 +167,9 @@ src/
 │   ├── Categories       # Category CRUD
 │   ├── Dashboard        # Main dashboard
 │   ├── Entries          # Entry list + edit + delete
-│   └── NewEntry         # Bulk entry creation
+│   ├── NewEntry         # Bulk entry creation
+│   ├── Privacy          # Privacy policy
+│   └── Terms            # Terms of service
 ├── App.tsx              # Root component, routing, state
 └── main.tsx             # Entry point
 ```
