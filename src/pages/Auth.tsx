@@ -1,5 +1,4 @@
-import { SignIn, SignUp } from "@clerk/clerk-react";
-import { useState } from "react";
+import { SignIn } from "@clerk/clerk-react";
 import {
   TrendingUp,
   BarChart3,
@@ -8,7 +7,6 @@ import {
   ArrowUpRight,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const features = [
   {
@@ -34,8 +32,6 @@ const features = [
 ];
 
 const Auth = () => {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
@@ -94,22 +90,8 @@ const Auth = () => {
         </div>
 
         {/* Right - Clerk auth */}
-        <div className="w-full max-w-[400px] flex flex-col items-center">
-          {mode === "signin" ? (
-            <SignIn routing="hash" />
-          ) : (
-            <SignUp routing="hash" />
-          )}
-          <Button
-            variant="link"
-            size="sm"
-            className="text-xs text-muted-foreground mt-2"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          >
-            {mode === "signin"
-              ? "Don't have an account? Sign up"
-              : "Already have an account? Sign in"}
-          </Button>
+        <div className="w-full max-w-[400px]">
+          <SignIn routing="hash" />
         </div>
       </div>
 
