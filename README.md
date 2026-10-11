@@ -32,7 +32,7 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 | Styling | Tailwind CSS + shadcn/ui |
 | Charts | Recharts |
 | Auth | Clerk (with JWT integration) |
-| Database | Supabase (PostgreSQL) with RLS |
+| Database | Self-hosted PostgreSQL + PostgREST with RLS |
 | Exchange Rates | ExchangeRate-API |
 | Deployment | Docker (nginx) + Coolify |
 
@@ -42,10 +42,10 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 
 - Node.js 18+
 - A [Clerk](https://clerk.com) account (for authentication)
-- A [Supabase](https://supabase.com) project (for the database)
+- Docker (for the database, see `deploy/`)
 - An [ExchangeRate-API](https://www.exchangerate-api.com/) key (free tier works)
 
-> For detailed setup instructions (Clerk JWT, Supabase schema, RLS policies, deployment), see **[docs/SETUP.md](docs/SETUP.md)**.
+> The database stack (Postgres + PostgREST, schema, RLS, backups) lives in **[deploy/](deploy/README.md)**.
 
 ### Quick Start
 
@@ -70,57 +70,12 @@ Create a `.env` file (see `.env.example`):
 
 ```env
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 VITE_EXCHANGE_RATE_API_KEY=your-exchangerate-api-key
 ```
 
-### Database Schema
+### Database
 
-Run in **Supabase SQL Editor**:
-
-```sql
-CREATE TABLE categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  user_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE entries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-  amount NUMERIC NOT NULL,
-  currency TEXT NOT NULL DEFAULT 'SGD',
-  date TIMESTAMPTZ NOT NULL,
-  notes TEXT DEFAULT '',
-  user_id TEXT NOT NULL
-);
-
-CREATE INDEX idx_categories_user_id ON categories(user_id);
-CREATE INDEX idx_entries_user_id ON entries(user_id);
-CREATE INDEX idx_entries_date ON entries(date DESC);
-```
-
-### Row Level Security
-
-The app uses Clerk JWTs to authenticate Supabase requests. After setting up the Clerk JWT template (see [docs/SETUP.md](docs/SETUP.md)):
-
-```sql
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE entries ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own categories" ON categories FOR SELECT USING (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can insert own categories" ON categories FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can update own categories" ON categories FOR UPDATE USING (auth.jwt() ->> 'sub' = user_id) WITH CHECK (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can delete own categories" ON categories FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
-
-CREATE POLICY "Users can view own entries" ON entries FOR SELECT USING (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can insert own entries" ON entries FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can update own entries" ON entries FOR UPDATE USING (auth.jwt() ->> 'sub' = user_id) WITH CHECK (auth.jwt() ->> 'sub' = user_id);
-CREATE POLICY "Users can delete own entries" ON entries FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
-```
+Postgres + PostgREST run in Docker (`deploy/docker-compose.yml`). The frontend uses `supabase-js` against PostgREST at the same origin under `/rest/v1` (Traefik in prod; Vite proxies it to `VITE_DEV_API_PROXY`, default `https://wealth.hwendev.com`, in dev). Requests carry the default Clerk session token; PostgREST verifies it against Clerk's JWKS and RLS scopes rows by `sub`. Schema: `deploy/init/01-schema.sh`.
 
 ### Docker Deployment
 
@@ -134,8 +89,6 @@ Pass env vars as build args (Vite embeds them at build time):
 ```bash
 docker build \
   --build-arg VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxx \
-  --build-arg VITE_SUPABASE_URL=https://xxx.supabase.co \
-  --build-arg VITE_SUPABASE_ANON_KEY=xxx \
   --build-arg VITE_EXCHANGE_RATE_API_KEY=xxx \
   -t wealth-tracker .
 ```
@@ -156,7 +109,7 @@ src/
 ├── hooks/
 │   └── use-theme        # Dark/light/system theme
 ├── integrations/
-│   └── supabase/        # Supabase client (with Clerk JWT auth)
+│   └── supabase/        # supabase-js client for self-hosted PostgREST (Clerk JWT auth)
 ├── lib/
 │   ├── auth             # Clerk migration helpers
 │   ├── csv              # CSV import/export

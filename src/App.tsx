@@ -40,7 +40,7 @@ const AuthenticatedApp = () => {
   const userId = user?.id ?? null;
 
   const supabase = useMemo(
-    () => createClerkSupabaseClient(() => getToken({ template: "supabase" })),
+    () => createClerkSupabaseClient(() => getToken()),
     [getToken]
   );
 

@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/rest/v1": {
+        target: process.env.VITE_DEV_API_PROXY || "https://wealth.hwendev.com",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     react(),

@@ -1,0 +1,65 @@
+# Self-hosted database for WealthTracker (replaces Supabase).
+#
+#   postgres  — data, internal network only (never exposed to host/Traefik)
+#   postgrest — the same REST layer Supabase uses, so supabase-js keeps working.
+#               Traefik routes https://wealth.hwendev.com/rest/v1/* here.
+#
+# Usage (on houman-vps, in ~/wealth-tracker-db):
+#   cp .env.example .env && $EDITOR .env
+#   ./scripts/refresh-jwks.sh          # writes PGRST_JWT_SECRET from Clerk JWKS
+#   docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: wealth
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wealth"]
+      interval: 5s
+      retries: 10
+    networks: [internal]
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@db:5432/wealth
+      PGRST_DB_SCHEMAS: public
+      # Clerk session tokens carry no `role` claim, so every verified request
+      # runs as this role; RLS scopes rows by the token's `sub`.
+      PGRST_DB_ANON_ROLE: web_user
+      # Clerk JWKS (RS256). Refresh with scripts/refresh-jwks.sh if Clerk rotates keys.
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
+      PGRST_DB_MAX_ROWS: 10000
+    networks: [internal, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - "traefik.http.routers.wealth-rest.rule=Host(`wealth.hwendev.com`) && PathPrefix(`/rest/v1`)"
+      - traefik.http.routers.wealth-rest.entrypoints=https
+      - traefik.http.routers.wealth-rest.tls=true
+      - traefik.http.routers.wealth-rest.tls.certresolver=letsencrypt
+      # Must beat Coolify's `Host && PathPrefix(/)` router for the SPA.
+      - traefik.http.routers.wealth-rest.priority=100
+      - traefik.http.routers.wealth-rest.middlewares=wealth-rest-strip
+      - traefik.http.middlewares.wealth-rest-strip.stripprefix.prefixes=/rest/v1
+      - traefik.http.services.wealth-rest.loadbalancer.server.port=3000
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+    driver: bridge
+  coolify:
+    external: true

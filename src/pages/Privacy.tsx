@@ -114,18 +114,6 @@ const Privacy = () => {
                 </a>
               </li>
               <li>
-                <strong className="text-foreground">Supabase</strong> — Database
-                hosting (PostgreSQL).{" "}
-                <a
-                  href="https://supabase.com/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Supabase Privacy Policy
-                </a>
-              </li>
-              <li>
                 <strong className="text-foreground">ExchangeRate-API</strong> —
                 Currency exchange rates. No personal data is sent to this
                 service.
@@ -162,8 +150,8 @@ const Privacy = () => {
           <section>
             <h2 className="text-xl font-semibold mb-3">5. Data Storage & Security</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Your financial data is stored in a Supabase-hosted PostgreSQL
-              database. Data is transmitted over HTTPS and encrypted in transit.
+              Your financial data is stored in a PostgreSQL database on a
+              server we operate. Data is transmitted over HTTPS and encrypted in transit.
               We implement application-level access controls to ensure you can
               only access your own data. We do not sell, trade, or share your
               financial data with any third parties.
