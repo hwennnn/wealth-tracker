@@ -28,8 +28,36 @@ import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Onboarding from "./components/Onboarding";
+import { Button } from "./components/ui/button";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+
+// Single-user app: only this (Clerk-verified) email may use it.
+const ALLOWED_EMAIL = "hwendev@gmail.com";
+
+const AllowedUserGate = ({ children }: { children: React.ReactNode }) => {
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  if (!isLoaded || !user) return null;
+
+  const allowed = user.emailAddresses.some(
+    (e) =>
+      e.emailAddress.toLowerCase() === ALLOWED_EMAIL &&
+      e.verification?.status === "verified"
+  );
+  if (allowed) return <>{children}</>;
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4 text-center bg-background">
+      <h1 className="text-xl font-semibold">Access restricted</h1>
+      <p className="text-muted-foreground max-w-sm">
+        This app is private. {user.primaryEmailAddress?.emailAddress} is not
+        allowed to sign in.
+      </p>
+      <Button onClick={() => signOut()}>Sign out</Button>
+    </div>
+  );
+};
 
 const queryClient = new QueryClient();
 
@@ -513,7 +541,9 @@ const App = () => {
                 element={
                   <>
                     <SignedIn>
-                      <AuthenticatedApp />
+                      <AllowedUserGate>
+                        <AuthenticatedApp />
+                      </AllowedUserGate>
                     </SignedIn>
                     <SignedOut>
                       <Auth />
