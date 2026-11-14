@@ -87,5 +87,6 @@ export default {
       }
     }
   },
-  plugins: [require("tailwindcss-animate")],
+  // CJS plugin; tailwind loads this file from PostCSS.
+  plugins: [require("tailwindcss-animate")], // eslint-disable-line @typescript-eslint/no-require-imports
 } satisfies Config;

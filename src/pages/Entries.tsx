@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Plus, Trash2, Upload, Save, Loader2 } from "lucide-react";
 import { convertAmount, formatCurrency } from "@/lib/currency";
+import { dateKey, netPosition } from "@/lib/netWorth";
 import { parseCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
@@ -60,6 +61,8 @@ type EntriesProps = {
   displayCurrency: string;
   categories: Category[];
   exchangeRates: ExchangeRates | null;
+  cards: CreditCard[];
+  statements: CreditCardStatement[];
 };
 
 const Entries = ({
@@ -70,6 +73,8 @@ const Entries = ({
   displayCurrency,
   categories,
   exchangeRates,
+  cards,
+  statements,
 }: EntriesProps) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,14 +96,16 @@ const Entries = ({
     categories.map((c) => [c.name.toLowerCase(), c.id])
   );
 
-  const convertedTotal = (timeline: TimelineEntry) => {
-    if (!exchangeRates) return timeline.total_amount;
-    return timeline.entries.reduce(
-      (sum, e) =>
-        sum + convertAmount(e.amount, e.currency, displayCurrency, exchangeRates),
-      0
-    );
-  };
+  const positionFor = (timeline: TimelineEntry) =>
+    netPosition({
+      entries: timeline.entries,
+      cards,
+      statements,
+      displayCurrency,
+      exchangeRates,
+      asOf: dateKey(timeline.date),
+      categoryOrder: categories.map((category) => category.id),
+    });
 
   const sorted = [...timelineEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -241,7 +248,7 @@ const Entries = ({
       ) : (
         <div className="space-y-2">
           {sorted.map((timeline) => {
-            const total = convertedTotal(timeline);
+            const position = positionFor(timeline);
             return (
               <Card key={timeline.id} className="group hover:shadow-md transition-shadow">
                 <CardContent className="flex items-center justify-between py-3 px-4">
@@ -250,11 +257,13 @@ const Entries = ({
                       {format(new Date(timeline.date), "dd MMM yyyy")}
                     </p>
                     <p className="text-base sm:text-lg font-bold text-primary tabular-nums">
-                      {formatCurrency(total, displayCurrency)}
+                      {formatCurrency(position.net, displayCurrency)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {timeline.entries.length} asset
                       {timeline.entries.length !== 1 ? "s" : ""}
+                      {position.liabilities > 0 &&
+                        ` · cards ${formatCurrency(-position.liabilities, displayCurrency)}`}
                     </p>
                   </div>
                   <div className="flex gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
@@ -339,10 +348,18 @@ const Entries = ({
                 </div>
               );
             })}
+            {selectedEntry && positionFor(selectedEntry).liabilities > 0 && (
+              <div className="flex justify-between items-center pt-2 text-sm">
+                <span className="text-muted-foreground">Credit cards</span>
+                <span className="font-medium tabular-nums text-red-500">
+                  {formatCurrency(-positionFor(selectedEntry).liabilities, displayCurrency)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-sm font-semibold">Total</span>
+              <span className="text-sm font-semibold">Net</span>
               <span className="text-base font-bold text-primary tabular-nums">
-                {selectedEntry && formatCurrency(convertedTotal(selectedEntry), displayCurrency)}
+                {selectedEntry && formatCurrency(positionFor(selectedEntry).net, displayCurrency)}
               </span>
             </div>
           </div>

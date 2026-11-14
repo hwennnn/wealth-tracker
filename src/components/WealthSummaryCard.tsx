@@ -4,9 +4,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
+import { dateKey, netPosition } from "@/lib/netWorth";
+import { TrendingUp, TrendingDown, Minus, Target, CreditCard as CreditCardIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { WealthGoal } from "@/lib/goals";
 
@@ -18,6 +19,8 @@ type WealthSummaryProps = {
   exchangeRates: ExchangeRates | null;
   timelineEntries: TimelineEntry[];
   goals: WealthGoal[];
+  cards: CreditCard[];
+  statements: CreditCardStatement[];
 };
 
 const WealthSummaryCard = ({
@@ -27,8 +30,21 @@ const WealthSummaryCard = ({
   exchangeRates,
   timelineEntries,
   goals,
+  cards,
+  statements,
 }: WealthSummaryProps) => {
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+  const cardMap = new Map(cards.map((card) => [card.id, card]));
+  const categoryOrder = categories.map((category) => category.id);
+
+  const current = netPosition({
+    entries,
+    cards,
+    statements,
+    displayCurrency: currency,
+    exchangeRates,
+    categoryOrder,
+  });
 
   const convertEntry = (amount: number, from: string) => {
     if (!exchangeRates || from === currency) return amount;
@@ -40,35 +56,36 @@ const WealthSummaryCard = ({
     convertedAmount: convertEntry(entry.amount, entry.currency),
   }));
 
-  const convertedTotal = convertedEntries.reduce(
-    (sum, e) => sum + e.convertedAmount,
-    0
-  );
-
-  // Month-over-month change
+  // Month-over-month change compares net worth, after cards outstanding on each date.
   const sorted = [...timelineEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
   const previousTimeline = sorted.length > 1 ? sorted[1] : null;
-  const previousTotal = previousTimeline
-    ? previousTimeline.entries.reduce(
-        (sum, e) => sum + convertEntry(e.amount, e.currency),
-        0
-      )
+  const previous = previousTimeline
+    ? netPosition({
+        entries: previousTimeline.entries,
+        cards,
+        statements,
+        displayCurrency: currency,
+        exchangeRates,
+        asOf: dateKey(previousTimeline.date),
+        categoryOrder,
+      })
     : null;
 
-  const change =
-    previousTotal !== null ? convertedTotal - previousTotal : null;
+  const convertedTotal = current.net;
+  const change = previous ? convertedTotal - previous.net : null;
   const changePct =
-    previousTotal !== null && previousTotal !== 0
-      ? ((convertedTotal - previousTotal) / previousTotal) * 100
+    previous && previous.net !== 0
+      ? ((convertedTotal - previous.net) / previous.net) * 100
       : null;
+  const billedCards = current.cards.filter((card) => card.statementId);
 
   // Active goal
   const activeGoal = goals[0] || null;
   const goalProgress =
     activeGoal && activeGoal.targetAmount > 0
-      ? Math.min((convertedTotal / activeGoal.targetAmount) * 100, 100)
+      ? Math.max(0, Math.min((convertedTotal / activeGoal.targetAmount) * 100, 100))
       : 0;
 
   return (
@@ -113,8 +130,30 @@ const WealthSummaryCard = ({
               </span>
             </div>
           )}
-          <p className="text-xs text-muted-foreground mt-1">
-            {entries.length} asset{entries.length !== 1 ? "s" : ""} tracked
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-md bg-muted/50 px-2.5 py-2">
+              <p className="text-muted-foreground">Assets</p>
+              <p className="font-semibold tabular-nums mt-0.5">
+                {formatCurrency(current.assets, currency)}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/50 px-2.5 py-2">
+              <p className="text-muted-foreground">Credit cards</p>
+              <p
+                className={`font-semibold tabular-nums mt-0.5 ${
+                  current.liabilities > 0 ? "text-red-500" : ""
+                }`}
+              >
+                {current.liabilities > 0
+                  ? formatCurrency(-current.liabilities, currency)
+                  : formatCurrency(0, currency)}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {entries.length} asset{entries.length !== 1 ? "s" : ""}
+            {billedCards.length > 0 &&
+              ` · ${billedCards.length} card${billedCards.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
@@ -167,6 +206,33 @@ const WealthSummaryCard = ({
             </div>
           ))}
         </div>
+
+        {billedCards.length > 0 && (
+          <div className="space-y-1 pt-1">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <CreditCardIcon className="h-3.5 w-3.5" />
+              Credit cards
+            </p>
+            {billedCards.map((outstanding) => (
+              <div
+                key={outstanding.cardId}
+                className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0"
+              >
+                <div className="min-w-0 flex-1 mr-3">
+                  <p className="text-sm font-medium truncate">
+                    {cardMap.get(outstanding.cardId)?.name || "Card"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {categoryMap.get(outstanding.categoryId) || "Account"}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold tabular-nums text-red-500">
+                  {formatCurrency(-outstanding.convertedAmount, currency)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

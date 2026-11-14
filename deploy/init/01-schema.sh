@@ -1,5 +1,6 @@
 #!/bin/sh
 # Runs once, on first boot of an empty data volume.
+# Credit cards are added by 02-credit-cards.sql (same SQL as deploy/migrations/002_credit_cards.sql).
 set -e
 psql -v ON_ERROR_STOP=1 -U postgres -d wealth -v authpw="$AUTHENTICATOR_PASSWORD" <<'SQL'
 -- PostgREST roles

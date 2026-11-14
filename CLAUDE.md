@@ -21,7 +21,8 @@ WealthTracker is a personal net worth tracking app. Users record periodic "snaps
 ### Database: self-hosted PostgreSQL + PostgREST (on houman-vps)
 - Runs from `deploy/` on houman-vps in `~/wealth-tracker-db` (not managed by Coolify); Traefik routes `wealth.hwendev.com/rest/v1/*` to PostgREST
 - supabase-js is still used as the client library (it speaks PostgREST); the URL is `window.location.origin`
-- Two main tables: `categories`, `entries`
+- Tables: `categories`, `entries`, `credit_cards`, `credit_card_statements`
+- A credit card belongs to one category (the bank account). Net worth subtracts the latest statement per card (`src/lib/netWorth.ts`); history uses the statement outstanding as of each snapshot date. Schema upgrades after first boot are manual: `deploy/migrations/`
 - Nightly `pg_dump` via cron (`deploy/scripts/backup.sh`, kept 30 days in `~/wealth-tracker-db/backups`)
 - All queries go through an authenticated Supabase client (Clerk JWT in Authorization header)
 - RLS is enabled — every row is scoped to the authenticated user at the database level

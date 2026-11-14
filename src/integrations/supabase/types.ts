@@ -110,6 +110,92 @@ export type Database = {
           }
         ];
       };
+      credit_cards: {
+        Row: {
+          id: string;
+          category_id: string;
+          name: string;
+          currency: string;
+          notes: string | null;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          category_id: string;
+          name: string;
+          currency: string;
+          notes?: string | null;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          category_id?: string;
+          name?: string;
+          currency?: string;
+          notes?: string | null;
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_category_id_user_id_fkey";
+            columns: ["category_id", "user_id"];
+            referencedRelation: "categories";
+            referencedColumns: ["id", "user_id"];
+          }
+        ];
+      };
+      credit_card_statements: {
+        Row: {
+          id: string;
+          credit_card_id: string;
+          statement_date: string;
+          period_start: string | null;
+          balance_owed: number;
+          due_date: string | null;
+          minimum_payment: number | null;
+          currency: string;
+          notes: string | null;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          credit_card_id: string;
+          statement_date: string;
+          period_start?: string | null;
+          balance_owed: number;
+          due_date?: string | null;
+          minimum_payment?: number | null;
+          currency: string;
+          notes?: string | null;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          credit_card_id?: string;
+          statement_date?: string;
+          period_start?: string | null;
+          balance_owed?: number;
+          due_date?: string | null;
+          minimum_payment?: number | null;
+          currency?: string;
+          notes?: string | null;
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_statements_credit_card_id_user_id_fkey";
+            columns: ["credit_card_id", "user_id"];
+            referencedRelation: "credit_cards";
+            referencedColumns: ["id", "user_id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

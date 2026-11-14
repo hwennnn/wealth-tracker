@@ -5,8 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
+import { dateKey, netPosition } from "@/lib/netWorth";
 import { format, subMonths } from "date-fns";
 import {
   Area,
@@ -31,6 +32,8 @@ type WealthChartProps = {
   currency: string;
   categories: Category[];
   exchangeRates: ExchangeRates | null;
+  cards: CreditCard[];
+  statements: CreditCardStatement[];
 };
 
 const COLORS = [
@@ -59,6 +62,8 @@ const WealthChart = ({
   currency,
   categories,
   exchangeRates,
+  cards,
+  statements,
 }: WealthChartProps) => {
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
@@ -84,17 +89,29 @@ const WealthChart = ({
 
   const lineChartData = filteredTimeline
     .map((timeline) => {
-      const converted = timeline.entries.reduce(
-        (sum, e) => sum + convertedAmount(e.amount, e.currency),
-        0
-      );
+      const position = netPosition({
+        entries: timeline.entries,
+        cards,
+        statements,
+        displayCurrency: currency,
+        exchangeRates,
+        asOf: dateKey(timeline.date),
+      });
       return {
         date: new Date(timeline.date).getTime(),
         dateLabel: format(new Date(timeline.date), "dd MMM yy"),
-        amount: Math.round(converted * 100) / 100,
+        amount: Math.round(position.net * 100) / 100,
       };
     })
     .sort((a, b) => a.date - b.date);
+
+  const latestLiabilities = netPosition({
+    entries: latestEntries,
+    cards,
+    statements,
+    displayCurrency: currency,
+    exchangeRates,
+  }).liabilities;
 
   const pieChartData = latestEntries
     .map((entry) => ({
@@ -106,7 +123,13 @@ const WealthChart = ({
 
   const totalPieValue = pieChartData.reduce((s, d) => s + d.value, 0);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: { payload: { dateLabel: string; amount: number } }[];
+  }) => {
     if (!active || !payload?.length) return null;
     const data = payload[0].payload;
     return (
@@ -121,7 +144,13 @@ const WealthChart = ({
     );
   };
 
-  const PieTooltip = ({ active, payload }: any) => {
+  const PieTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: { payload: { name: string; value: number } }[];
+  }) => {
     if (!active || !payload?.length) return null;
     const data = payload[0].payload;
     const pct =
@@ -149,7 +178,11 @@ const WealthChart = ({
               <CardTitle className="text-base font-semibold">
                 Wealth Growth
               </CardTitle>
-              <CardDescription>Net worth over time</CardDescription>
+              <CardDescription>
+                {latestLiabilities > 0
+                  ? "Net worth over time. A card balance counts from its statement date."
+                  : "Net worth over time"}
+              </CardDescription>
             </div>
             <div className="flex gap-1">
               {TIME_RANGES.map((r) => (
@@ -213,6 +246,7 @@ const WealthChart = ({
                     interval="preserveStartEnd"
                   />
                   <YAxis
+                    domain={["dataMin", "dataMax"]}
                     tickFormatter={(v) => formatCurrency(v, currency, true)}
                     tick={{ fontSize: 10 }}
                     tickLine={false}
@@ -247,7 +281,11 @@ const WealthChart = ({
           <CardTitle className="text-base font-semibold">
             Asset Distribution
           </CardTitle>
-          <CardDescription>Breakdown by category</CardDescription>
+          <CardDescription>
+            {latestLiabilities > 0
+              ? "Assets only. Card balances are subtracted in the total."
+              : "Breakdown by category"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {pieChartData.length === 0 ? (

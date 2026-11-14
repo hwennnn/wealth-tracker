@@ -7,6 +7,7 @@ import {
   Plus,
   Tag,
   List,
+  CreditCard,
   TrendingUp,
   ChevronDown,
   Sun,
@@ -32,9 +33,10 @@ type LayoutProps = {
   children: ReactNode;
   onLogout?: () => void;
   onCurrencyChange?: (code: string) => void;
+  demo?: boolean;
 };
 
-const Layout = ({ children, onCurrencyChange }: LayoutProps) => {
+const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [displayCurrency, setLocalCurrency] = useState(getDisplayCurrency());
@@ -44,6 +46,7 @@ const Layout = ({ children, onCurrencyChange }: LayoutProps) => {
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/categories", label: "Categories", icon: Tag },
+    { path: "/cards", label: "Cards", icon: CreditCard },
     { path: "/entries", label: "Entries", icon: List },
   ];
 
@@ -165,13 +168,19 @@ const Layout = ({ children, onCurrencyChange }: LayoutProps) => {
               <span className="hidden sm:inline">New Entry</span>
             </Button>
 
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "h-8 w-8",
-                },
-              }}
-            />
+            {demo ? (
+              <div className="h-8 w-8 rounded-full bg-primary/15 text-primary text-xs font-semibold flex items-center justify-center">
+                H
+              </div>
+            ) : (
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "h-8 w-8",
+                  },
+                }}
+              />
+            )}
           </div>
         </div>
 

@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import WealthChart from "@/components/WealthChart";
 import WealthSummaryCard from "@/components/WealthSummaryCard";
 import CategoryTrends from "@/components/CategoryTrends";
+import AccountBreakdown from "@/components/AccountBreakdown";
 import GoalDialog from "@/components/GoalDialog";
 import { Button } from "@/components/ui/button";
-import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
-import { ArrowRight, Download, Plus, Tag, Upload } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Category,
+  CreditCard,
+  CreditCardStatement,
+  Entry,
+  ExchangeRates,
+  TimelineEntry,
+} from "@/lib/types";
+import { ArrowRight, CreditCard as CreditCardIcon, Download, Plus, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { convertAmount, formatCurrency } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
+import { netPosition } from "@/lib/netWorth";
 import {
   WealthGoal,
   getGoals,
@@ -25,6 +35,10 @@ type DashboardProps = {
   categories: Category[];
   exchangeRates: ExchangeRates | null;
   allEntries: Entry[];
+  cards: CreditCard[];
+  statements: CreditCardStatement[];
+  cardsUnavailable?: boolean;
+  suppressMilestones?: boolean;
 };
 
 const Dashboard = ({
@@ -35,21 +49,35 @@ const Dashboard = ({
   categories,
   exchangeRates,
   allEntries,
+  cards,
+  statements,
+  cardsUnavailable,
+  suppressMilestones,
 }: DashboardProps) => {
   const navigate = useNavigate();
   const [goals, setGoals] = useState<WealthGoal[]>(getGoals);
 
   const refreshGoals = () => setGoals(getGoals());
 
-  // Calculate converted total for milestones
-  const convertedTotal = latestEntries.reduce((sum, e) => {
-    if (!exchangeRates || e.currency === displayCurrency) return sum + e.amount;
-    return sum + convertAmount(e.amount, e.currency, displayCurrency, exchangeRates);
-  }, 0);
+  const position = useMemo(
+    () =>
+      netPosition({
+        entries: latestEntries,
+        cards,
+        statements,
+        displayCurrency,
+        exchangeRates,
+        categoryOrder: categories.map((category) => category.id),
+      }),
+    [latestEntries, cards, statements, displayCurrency, exchangeRates, categories]
+  );
+
+  // Milestones and the headline use net worth after the latest statement on each card.
+  const convertedTotal = position.net;
 
   // Check for milestones
   useEffect(() => {
-    if (convertedTotal <= 0) return;
+    if (suppressMilestones || convertedTotal <= 0) return;
     const newMilestones = getNewMilestones(convertedTotal);
     for (const milestone of newMilestones) {
       celebrateMilestone(milestone);
@@ -58,7 +86,7 @@ const Dashboard = ({
         { duration: 6000 }
       );
     }
-  }, [convertedTotal, displayCurrency]);
+  }, [convertedTotal, displayCurrency, suppressMilestones]);
 
   const handleExport = () => {
     const csv = exportEntriesToCSV(allEntries, categories);
@@ -67,7 +95,7 @@ const Dashboard = ({
     toast.success("Data exported successfully");
   };
 
-  if (timelineEntries.length === 0) {
+  if (timelineEntries.length === 0 && cards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center px-4">
         <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
@@ -149,6 +177,8 @@ const Dashboard = ({
             exchangeRates={exchangeRates}
             timelineEntries={timelineEntries}
             goals={goals}
+            cards={cards}
+            statements={statements}
           />
         </div>
         <div className="lg:col-span-8">
@@ -158,9 +188,29 @@ const Dashboard = ({
             currency={displayCurrency}
             categories={categories}
             exchangeRates={exchangeRates}
+            cards={cards}
+            statements={statements}
           />
         </div>
       </div>
+
+      {cardsUnavailable && (
+        <Alert>
+          <CreditCardIcon className="h-4 w-4" />
+          <AlertTitle>Credit cards are not in the database yet</AlertTitle>
+          <AlertDescription>
+            Net worth is still assets only until{" "}
+            <span className="font-medium">deploy/migrations/002_credit_cards.sql</span> is applied.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <AccountBreakdown
+        accounts={position.accounts}
+        categories={categories}
+        cards={cards}
+        currency={displayCurrency}
+      />
 
       {/* Category trends */}
       <CategoryTrends
@@ -168,6 +218,8 @@ const Dashboard = ({
         categories={categories}
         currency={displayCurrency}
         exchangeRates={exchangeRates}
+        cards={cards}
+        statements={statements}
       />
     </div>
   );

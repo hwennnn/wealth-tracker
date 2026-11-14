@@ -19,6 +19,7 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 - **Dark mode** — Light, dark, and system theme support
 - **Configurable display currency** — Switch your display currency anytime from the header
 - **Guided onboarding** — New users get a category selection flow to get started quickly
+- **Credit cards** — Attach one or more cards to an account and record statements. Net worth subtracts the latest balance owed on each card
 - **Edit entries** — Update any asset entry directly from the entries view
 - **Mobile responsive** — Works on desktop, tablet, and mobile
 - **Social auth** — Sign in with email, Google, or GitHub via Clerk
@@ -75,7 +76,7 @@ VITE_EXCHANGE_RATE_API_KEY=your-exchangerate-api-key
 
 ### Database
 
-Postgres + PostgREST run in Docker (`deploy/docker-compose.yml`). The frontend uses `supabase-js` against PostgREST at the same origin under `/rest/v1` (Traefik in prod; Vite proxies it to `VITE_DEV_API_PROXY`, default `https://wealth.hwendev.com`, in dev). Requests carry the default Clerk session token; PostgREST verifies it against Clerk's JWKS and RLS scopes rows by `sub`. Schema: `deploy/init/01-schema.sh`.
+Postgres + PostgREST run in Docker (`deploy/docker-compose.yml`). The frontend uses `supabase-js` against PostgREST at the same origin under `/rest/v1` (Traefik in prod; Vite proxies it to `VITE_DEV_API_PROXY`, default `https://wealth.hwendev.com`, in dev). Requests carry the default Clerk session token; PostgREST verifies it against Clerk's JWKS and RLS scopes rows by `sub`. Schema: `deploy/init/`. Upgrades to an existing database are applied by hand from `deploy/migrations/` (see `deploy/README.md`). The credit-card migration is `deploy/migrations/002_credit_cards.sql`.
 
 ### Docker Deployment
 
@@ -120,6 +121,7 @@ src/
 ├── pages/
 │   ├── Auth             # Sign in/up page (Clerk)
 │   ├── Categories       # Category CRUD
+│   ├── Cards            # Credit cards and statements per account
 │   ├── Dashboard        # Main dashboard
 │   ├── Entries          # Entry list + edit + delete
 │   ├── NewEntry         # Bulk entry creation

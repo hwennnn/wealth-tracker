@@ -5,8 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, CreditCard, CreditCardStatement, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
+import { dateKey, netPosition } from "@/lib/netWorth";
 import { format } from "date-fns";
 import {
   Area,
@@ -33,6 +34,8 @@ type CategoryTrendsProps = {
   categories: Category[];
   currency: string;
   exchangeRates: ExchangeRates | null;
+  cards: CreditCard[];
+  statements: CreditCardStatement[];
 };
 
 const CategoryTrends = ({
@@ -40,6 +43,8 @@ const CategoryTrends = ({
   categories,
   currency,
   exchangeRates,
+  cards,
+  statements,
 }: CategoryTrendsProps) => {
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
@@ -70,9 +75,17 @@ const CategoryTrends = ({
           (s, e) => s + convertEntry(e.amount, e.currency),
           0
         );
+        const liability = netPosition({
+          entries: [],
+          cards: cards.filter((card) => card.category_id === catId),
+          statements,
+          displayCurrency: currency,
+          exchangeRates,
+          asOf: dateKey(t.date),
+        }).liabilities;
         return {
           dateLabel: format(new Date(t.date), "dd MMM yy"),
-          amount: Math.round(total * 100) / 100,
+          amount: Math.round((total - liability) * 100) / 100,
         };
       })
       .filter(Boolean) as { dateLabel: string; amount: number }[];
@@ -94,7 +107,9 @@ const CategoryTrends = ({
         <CardTitle className="text-base font-semibold">
           Category Trends
         </CardTitle>
-        <CardDescription>Individual asset growth over time</CardDescription>
+        <CardDescription>
+          Per account over time, net of any credit cards on that account
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

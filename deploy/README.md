@@ -40,4 +40,22 @@ cp .env.example .env    # set POSTGRES_PASSWORD and AUTHENTICATOR_PASSWORD
 docker compose up -d    # init/01-schema.sh creates the roles, schema and RLS on first boot
 ```
 
-Schema changes after the first boot have to be applied by hand with psql, because the init scripts only run on an empty data volume. After a change, run `NOTIFY pgrst, 'reload schema';`.
+Schema changes after the first boot have to be applied by hand with psql, because the init scripts only run on an empty data volume. After a change, reload PostgREST with `NOTIFY pgrst, 'reload schema';`.
+
+## Migrations
+
+SQL files in `migrations/` are for a database that already has data. `init/` is only for an empty volume, and it includes the same credit-card SQL as `migrations/002_credit_cards.sql`. Pushing the frontend does not apply these files. The database is not managed by Coolify.
+
+Copy the file onto the VPS, then apply it from `~/wealth-tracker-db`:
+
+```bash
+scp deploy/migrations/002_credit_cards.sql houman-vps:~/wealth-tracker-db/migrations/002_credit_cards.sql
+
+ssh houman-vps
+cd ~/wealth-tracker-db
+mkdir -p migrations
+docker compose exec -T db psql -U postgres -d wealth -v ON_ERROR_STOP=1 < migrations/002_credit_cards.sql
+docker compose exec -T db psql -U postgres -d wealth -c "NOTIFY pgrst, 'reload schema';"
+```
+
+`./scripts/apply-migration.sh migrations/002_credit_cards.sql` runs those two commands. The migration is safe to re-run. It does not modify existing category or entry rows.
