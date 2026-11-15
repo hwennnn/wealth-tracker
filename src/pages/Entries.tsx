@@ -29,6 +29,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { CurrencyChip } from "@/components/CurrencyChip";
+import { currencies } from "@/lib/currencyData";
+import { regionFor } from "@/lib/regions";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Plus, Trash2, Upload, Save, Loader2 } from "lucide-react";
@@ -259,9 +262,9 @@ const Entries = ({
                         ` · cards ${formatCurrency(-position.liabilities, displayCurrency)}`}
                     </p>
                   </div>
-                  <div className="flex gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1.5">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => {
@@ -272,9 +275,9 @@ const Entries = ({
                       <Eye className="h-4 w-4" />
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      className="h-8 w-8 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => {
                         setEntryToDelete(timeline);
                         setIsDeleteDialogOpen(true);
@@ -297,7 +300,7 @@ const Entries = ({
             <DialogTitle>
               {selectedEntry && format(new Date(selectedEntry.date), "dd MMMM yyyy")}
             </DialogTitle>
-            <DialogDescription>Click the edit icon to modify an entry</DialogDescription>
+            <DialogDescription>Amounts are as recorded; ≈ is converted to {displayCurrency}.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 mt-2">
             {selectedEntry?.entries.map((entry) => {
@@ -315,8 +318,9 @@ const Entries = ({
                   className="flex items-center justify-between py-2 border-b border-border/40 last:border-0 group/row"
                 >
                   <div className="min-w-0 flex-1 mr-3">
-                    <p className="text-sm font-medium">
-                      {categoryMap.get(entry.category_id) || "Unknown"}
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">{categoryMap.get(entry.category_id) || "Unknown"}</span>
+                      <CurrencyChip currency={entry.currency} />
                     </p>
                     {entry.notes && (
                       <p className="text-xs text-muted-foreground truncate">{entry.notes}</p>
@@ -325,19 +329,20 @@ const Entries = ({
                   <div className="flex items-center gap-2">
                     <div className="text-right flex-shrink-0">
                       <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
-                        {formatCurrency(shown, displayCurrency)}
+                        {formatCurrency(card ? -Number(entry.amount) : Number(entry.amount), entry.currency)}
                       </p>
                       {entry.currency !== displayCurrency && (
                         <p className="text-xs text-muted-foreground tabular-nums">
-                          {formatCurrency(entry.amount, entry.currency)}
+                          ≈ {formatCurrency(shown, displayCurrency)}
                         </p>
                       )}
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
-                      className="h-7 w-7 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                      className="h-7 w-7"
                       onClick={() => startEdit(entry)}
+                      title="Edit row"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -397,8 +402,14 @@ const Entries = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SGD">SGD</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
+                    {currencies.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden>{regionFor(currency.code).flag}</span>
+                          {currency.code}
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -59,18 +59,39 @@ export function convertAmount(
   return inBase * rates.rates[toCurrency];
 }
 
+/**
+ * Symbols that never collide: "$" alone is ambiguous once SGD and USD sit side by side.
+ */
+const SYMBOLS: Record<string, string> = {
+  SGD: "S$",
+  USD: "US$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  AUD: "A$",
+  CAD: "C$",
+  CNY: "CN¥",
+  HKD: "HK$",
+};
+
+export function currencySymbol(currencyCode: string): string {
+  return SYMBOLS[currencyCode] ?? `${currencyCode} `;
+}
+
 export function formatCurrency(
   amount: number,
   currencyCode: string,
   compact: boolean = false
 ): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode,
-    maximumFractionDigits: compact ? 0 : 2,
-    minimumFractionDigits: compact ? 0 : 2,
-    notation: compact && Math.abs(amount) >= 10000 ? "compact" : "standard",
-  }).format(amount);
+  const useCompact = compact && Math.abs(amount) >= 10000;
+  const digits = compact || currencyCode === "JPY" ? 0 : 2;
+  const number = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: useCompact ? 1 : digits,
+    minimumFractionDigits: useCompact ? 0 : digits,
+    notation: useCompact ? "compact" : "standard",
+  }).format(Math.abs(amount));
+  const sign = amount < 0 && Math.abs(amount) >= 0.005 ? "-" : "";
+  return `${sign}${currencySymbol(currencyCode)}${number}`;
 }
 
 export function getDisplayCurrency(): string {

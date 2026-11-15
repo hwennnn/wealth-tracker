@@ -6,9 +6,11 @@ import {
 } from "@/components/ui/card";
 import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { isCreditCard, netPosition, orderCategories } from "@/lib/netWorth";
-import { TrendingUp, TrendingDown, Minus, Target, CreditCard } from "lucide-react";
+import { isCreditCard, netPosition } from "@/lib/netWorth";
+import { TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { compareRegions, regionFor } from "@/lib/regions";
+import { cn } from "@/lib/utils";
 import { WealthGoal } from "@/lib/goals";
 
 type WealthSummaryProps = {
@@ -29,7 +31,6 @@ const WealthSummaryCard = ({
   timelineEntries,
   goals,
 }: WealthSummaryProps) => {
-  const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   const current = netPosition({
     entries,
@@ -45,8 +46,9 @@ const WealthSummaryCard = ({
 
   const convertedEntries = entries.map((entry) => ({
     ...entry,
-    convertedAmount: convertEntry(entry.amount, entry.currency),
+    convertedAmount: convertEntry(Number(entry.amount), entry.currency),
   }));
+  const regionGroups = groupByRegion(convertedEntries, categories);
 
   const sorted = [...timelineEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -76,11 +78,14 @@ const WealthSummaryCard = ({
       : 0;
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          Net Worth
+        <CardTitle className="text-base font-semibold flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Net Worth
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">in {currency}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -118,13 +123,13 @@ const WealthSummaryCard = ({
             </div>
           )}
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-md bg-muted/50 px-2.5 py-2">
+            <div className="rounded-lg border bg-muted/30 px-3 py-2">
               <p className="text-muted-foreground">Assets</p>
               <p className="font-semibold tabular-nums mt-0.5">
                 {formatCurrency(current.assets, currency)}
               </p>
             </div>
-            <div className="rounded-md bg-muted/50 px-2.5 py-2">
+            <div className="rounded-lg border bg-muted/30 px-3 py-2">
               <p className="text-muted-foreground">Credit cards</p>
               <p
                 className={`font-semibold tabular-nums mt-0.5 ${
@@ -137,10 +142,9 @@ const WealthSummaryCard = ({
               </p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {entries.length} row{entries.length !== 1 ? "s" : ""}
-          </p>
         </div>
+
+        <RegionSplit groups={regionGroups} currency={currency} />
 
         {/* Goal progress */}
         {activeGoal && (
@@ -161,105 +165,84 @@ const WealthSummaryCard = ({
           </div>
         )}
 
-        {/* Asset breakdown */}
-        <SummaryRows entries={convertedEntries} categories={categories} currency={currency} categoryMap={categoryMap} />
       </CardContent>
     </Card>
   );
 };
 
-function SummaryRows({
-  entries,
-  categories,
-  currency,
-  categoryMap,
-}: {
-  entries: (Entry & { convertedAmount: number })[];
-  categories: Category[];
+export type ConvertedEntry = Entry & { convertedAmount: number };
+
+export type RegionGroup = {
   currency: string;
-  categoryMap: Map<string, string>;
-}) {
-  const order = new Map(orderCategories(categories).map((category, index) => [category.id, index]));
-  const sorted = entries
-    .slice()
-    .sort((a, b) => (order.get(a.category_id) ?? 999) - (order.get(b.category_id) ?? 999));
-  const blocks: { lead: (typeof sorted)[number] | null; cards: typeof sorted }[] = [];
+  entries: ConvertedEntry[];
+  /** In the region's own currency. Cards subtract. */
+  native: number;
+  /** In the display currency. Cards subtract. */
+  converted: number;
+};
 
-  for (const entry of sorted) {
+/** Buckets the snapshot by the currency each row was recorded in. */
+export function groupByRegion(entries: ConvertedEntry[], categories: Category[]): RegionGroup[] {
+  const groups = new Map<string, RegionGroup>();
+  for (const entry of entries) {
     const category = categories.find((item) => item.id === entry.category_id);
-    const bank =
-      isCreditCard(category) && category?.parent_id
-        ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
-        : undefined;
-    const previous = blocks[blocks.length - 1];
-    if (bank && previous && previous.lead?.category_id === bank.id) {
-      previous.cards.push(entry);
-    } else if (!bank) {
-      blocks.push({ lead: entry, cards: [] });
-    } else {
-      blocks.push({ lead: null, cards: [entry] });
-    }
+    const sign = isCreditCard(category) ? -1 : 1;
+    const group = groups.get(entry.currency) ?? {
+      currency: entry.currency,
+      entries: [],
+      native: 0,
+      converted: 0,
+    };
+    group.entries.push(entry);
+    group.native += sign * Number(entry.amount);
+    group.converted += sign * entry.convertedAmount;
+    groups.set(entry.currency, group);
   }
+  return [...groups.values()].sort((a, b) => compareRegions(a.currency, b.currency));
+}
 
-  const line = (entry: (typeof sorted)[number]) => {
-    const category = categories.find((item) => item.id === entry.category_id);
-    const card = isCreditCard(category);
-    const shown = card ? -entry.convertedAmount : entry.convertedAmount;
-    const bank = card && category?.parent_id
-      ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
-      : undefined;
-    return (
-      <div
-        key={entry.id}
-        className="flex items-center justify-between gap-3 border-b border-border/40 py-1.5 last:border-0"
-        title={bank ? `Linked to ${bank.name}` : undefined}
-      >
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
-            {card && <CreditCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-            <span className="truncate">{categoryMap.get(entry.category_id) || "Uncategorized"}</span>
-          </p>
-          {entry.notes && (
-            <p className="truncate text-xs text-muted-foreground">{entry.notes}</p>
-          )}
-        </div>
-        <div className="flex-shrink-0 text-right">
-          <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
-            {formatCurrency(shown, currency)}
-          </p>
-          {entry.currency !== currency && (
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
+function RegionSplit({ groups, currency }: { groups: RegionGroup[]; currency: string }) {
+  const positive = groups.filter((group) => group.converted > 0);
+  const total = positive.reduce((sum, group) => sum + group.converted, 0);
+  if (groups.length < 2 || total <= 0) return null;
   return (
-    <div>
-      {blocks.map((block, index) => (
-        <div key={block.lead?.id ?? `cards-${index}`}>
-          {block.lead && line(block.lead)}
-          {block.cards.length > 0 && (
-            <div className="relative ml-2 border-l border-foreground/30">
-              {block.cards.map((entry, cardIndex) => (
-                <div key={entry.id} className="relative pl-3">
-                  <span
-                    aria-hidden
-                    className="absolute left-0 top-1/2 h-px w-2.5 -translate-y-1/2 bg-foreground/30"
-                  />
-                  {cardIndex === block.cards.length - 1 && (
-                    <span aria-hidden className="absolute -left-px top-1/2 bottom-0 w-px bg-card" />
-                  )}
-                  {line(entry)}
-                </div>
-              ))}
+    <div className="space-y-2">
+      <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+        {positive.map((group) => (
+          <div
+            key={group.currency}
+            className={regionFor(group.currency).swatch}
+            style={{ width: `${(group.converted / total) * 100}%` }}
+            title={`${regionFor(group.currency).label}: ${((group.converted / total) * 100).toFixed(0)}%`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {groups.map((group) => {
+          const region = regionFor(group.currency);
+          const share = total > 0 && group.converted > 0 ? (group.converted / total) * 100 : 0;
+          return (
+            <div key={group.currency} className="rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium">
+                  <span className={cn("h-2 w-2 rounded-full", region.swatch)} aria-hidden />
+                  <span aria-hidden>{region.flag}</span>
+                  {group.currency}
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">{share.toFixed(0)}%</span>
+              </div>
+              <p className="mt-1 text-sm font-semibold tabular-nums">
+                {formatCurrency(group.native, group.currency)}
+              </p>
+              {group.currency !== currency && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  ≈ {formatCurrency(group.converted, currency)}
+                </p>
+              )}
             </div>
-          )}
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }

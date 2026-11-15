@@ -20,6 +20,19 @@ export default defineConfig(({ mode }) => ({
     mode === 'development' &&
     componentTagger(),
   ].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        // Split rarely-changing vendors so a deploy doesn't bust the whole bundle cache.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          clerk: ["@clerk/clerk-react"],
+          charts: ["recharts"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

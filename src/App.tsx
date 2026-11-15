@@ -18,7 +18,8 @@ import { createClerkSupabaseClient } from "./integrations/supabase/client";
 import { currencies } from "./lib/currencyData";
 import { fetchExchangeRates, getDisplayCurrency } from "./lib/currency";
 import { migrateUserData } from "./lib/auth";
-import { Category, CategoryKind, Entry, ExchangeRates, TimelineEntry } from "./lib/types";
+import { Category, Entry, ExchangeRates, TimelineEntry } from "./lib/types";
+import type { CategoryDraft } from "./components/CategoryForm";
 import Auth from "./pages/Auth";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
@@ -107,12 +108,7 @@ const AuthenticatedApp = () => {
   };
 
   // Category CRUD
-  const handleAddCategory = async (draft: {
-    name: string;
-    description: string;
-    kind: CategoryKind;
-    parentId: string | null;
-  }) => {
+  const handleAddCategory = async (draft: CategoryDraft) => {
     if (!userId) return;
     const { data, error } = await supabase
       .from("categories")
@@ -122,6 +118,7 @@ const AuthenticatedApp = () => {
           description: draft.description,
           kind: draft.kind,
           parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+          currency: draft.currency,
           user_id: userId,
         },
       ])
@@ -133,12 +130,7 @@ const AuthenticatedApp = () => {
 
   const handleUpdateCategory = async (
     id: string,
-    draft: {
-      name: string;
-      description: string;
-      kind: CategoryKind;
-      parentId: string | null;
-    }
+    draft: CategoryDraft
   ) => {
     if (!userId) return;
     const { data, error } = await supabase
@@ -148,6 +140,7 @@ const AuthenticatedApp = () => {
         description: draft.description,
         kind: draft.kind,
         parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+        currency: draft.currency,
       })
       .eq("id", id)
       .eq("user_id", userId)

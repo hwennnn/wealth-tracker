@@ -23,6 +23,7 @@ CREATE TABLE public.categories (
     description text,
     kind text NOT NULL DEFAULT 'asset' CHECK (kind IN ('asset', 'credit_card')),
     parent_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
+    currency text,
     user_id text NOT NULL,
     created_at timestamptz DEFAULT now(),
     CHECK (parent_id IS DISTINCT FROM id),

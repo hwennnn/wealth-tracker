@@ -10,7 +10,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { CategoryDraft } from "@/components/CategoryForm";
 import { Category } from "@/lib/types";
 import { useState } from "react";
@@ -46,14 +45,14 @@ const Categories = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Categories</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Accounts</h2>
         <p className="text-sm text-muted-foreground">
-          Assets and credit cards. A card's amount is the balance owed.
+          Banks, brokers and credit cards, grouped by currency. A card's amount is the balance owed.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-3">
+        <div className="lg:col-span-1 space-y-3 lg:sticky lg:top-20 lg:self-start">
           <CategoryForm
             key={editingCategory?.id ?? "new"}
             categories={categories}
@@ -63,18 +62,10 @@ const Categories = ({
             initialDescription={editingCategory?.description || ""}
             initialKind={editingCategory?.kind === "credit_card" ? "credit_card" : "asset"}
             initialParentId={editingCategory?.parent_id}
-            buttonText={editingCategory ? "Update Category" : "Create Category"}
+            initialCurrency={editingCategory?.currency}
+            buttonText={editingCategory ? "Save changes" : "Add account"}
+            onCancel={editingCategory ? () => setEditingCategory(null) : undefined}
           />
-          {editingCategory && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingCategory(null)}
-              className="text-muted-foreground"
-            >
-              Cancel Editing
-            </Button>
-          )}
         </div>
 
         <div className="lg:col-span-2">

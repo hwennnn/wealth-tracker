@@ -10,7 +10,7 @@ export const currencies: Currency[] = [
   {
     code: 'USD',
     name: 'US Dollar',
-    symbol: '$',
+    symbol: 'US$',
   },
   {
     code: 'EUR',

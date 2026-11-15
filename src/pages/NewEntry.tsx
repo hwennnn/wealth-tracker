@@ -19,12 +19,12 @@ const NewEntry = ({ categories, currencies, onAddEntries }: NewEntryProps) => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">New Entry</h2>
+        <h2 className="text-2xl font-bold tracking-tight">New snapshot</h2>
         <p className="text-sm text-muted-foreground">
           Record a wealth snapshot across all your assets at once
         </p>
       </div>
-      <div className="max-w-4xl">
+      <div className="max-w-5xl">
         <BulkEntryForm
           categories={categories}
           currencies={currencies}

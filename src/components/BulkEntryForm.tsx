@@ -20,6 +20,9 @@ import { CalendarIcon, CreditCard, Plus, Trash2, Save, Loader2 } from "lucide-re
 import { cn } from "@/lib/utils";
 import { orderCategories, isCreditCard } from "@/lib/netWorth";
 import { BulkEntryRow, Category, Currency } from "@/lib/types";
+import { compareRegions, defaultCurrencyFor, regionFor } from "@/lib/regions";
+import { currencySymbol, formatCurrency } from "@/lib/currency";
+import { RegionHeading } from "@/components/CurrencyChip";
 import { toast } from "sonner";
 
 type BulkEntryFormProps = {
@@ -44,6 +47,28 @@ function createEmptyRow(defaultCategory: string, defaultCurrency: string): BulkE
     currencyCode: defaultCurrency,
     notes: "",
   };
+}
+
+/** Banks (each followed by its cards) ordered by region, keeping the existing order inside a region. */
+function regionOrdered(categories: Category[]): Category[] {
+  const ordered = orderCategories(categories);
+  const groups: Category[][] = [];
+  for (const category of ordered) {
+    const bank = parentBank(category, categories);
+    const last = groups[groups.length - 1];
+    if (bank && last && last[0].id === bank.id) last.push(category);
+    else groups.push([category]);
+  }
+  return groups
+    .map((group, index) => ({ group, index, currency: defaultCurrencyFor(group[0], categories) }))
+    .sort((a, b) => compareRegions(a.currency, b.currency) || a.index - b.index)
+    .flatMap((item) => item.group);
+}
+
+function rowsFor(categories: Category[]): BulkEntryRow[] {
+  return regionOrdered(categories).map((category) =>
+    createEmptyRow(category.id, defaultCurrencyFor(category, categories))
+  );
 }
 
 function parentBank(category: Category | undefined, categories: Category[]): Category | null {
@@ -106,15 +131,18 @@ function EntryRow({
   const selected = categories.find((category) => category.id === row.categoryId);
   const card = isCreditCard(selected);
   const bank = parentBank(selected, categories);
+  const accountCurrency = defaultCurrencyFor(selected, categories);
+  const overridden = Boolean(selected) && row.currencyCode !== accountCurrency;
+  const symbol = currencySymbol(row.currencyCode).trim();
 
   return (
     <div
       className={cn(
-        "grid grid-cols-1 gap-2 sm:h-9 sm:grid-cols-[1fr_120px_100px_1fr_40px] sm:items-center sm:gap-2",
+        "grid grid-cols-[1fr_96px] gap-2 sm:h-9 sm:grid-cols-[1fr_150px_104px_1fr_36px] sm:items-center sm:gap-2",
         chrome && "rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0 sm:h-9"
       )}
     >
-      <div className={cn("relative min-w-0", nested && "sm:pl-5")}>
+      <div className={cn("relative col-span-2 min-w-0 sm:col-span-1", nested && "sm:pl-5")}>
         {nested && (
           <span
             aria-hidden
@@ -143,28 +171,50 @@ function EntryRow({
         </Select>
       </div>
 
-      <Input
-        type="number"
-        value={row.amount}
-        onChange={(event) => onUpdate(row.id, "amount", event.target.value)}
-        placeholder="0.00"
-        step="0.01"
-        min="0"
-        className="h-9 text-sm"
-        aria-label={card ? `Balance owed for ${selected?.name}` : `Amount for ${selected?.name ?? "category"}`}
-      />
+      <div className="relative">
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold",
+            card ? "text-red-500" : "text-muted-foreground"
+          )}
+        >
+          {card ? `−${symbol}` : symbol}
+        </span>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={row.amount}
+          onChange={(event) => onUpdate(row.id, "amount", event.target.value)}
+          placeholder="0.00"
+          step="0.01"
+          min="0"
+          className={cn("h-9 text-sm tabular-nums", symbol.length > 2 ? "pl-12" : "pl-9")}
+          aria-label={card ? `Balance owed for ${selected?.name}` : `Amount for ${selected?.name ?? "category"}`}
+        />
+      </div>
 
       <Select
         value={row.currencyCode}
         onValueChange={(value) => onUpdate(row.id, "currencyCode", value)}
       >
-        <SelectTrigger className="h-9 text-sm">
+        <SelectTrigger
+          className={cn(
+            "h-9 text-sm font-medium",
+            overridden && "border-amber-500 ring-1 ring-amber-500/40 text-amber-700 dark:text-amber-300"
+          )}
+          title={overridden ? `${selected?.name} is usually ${accountCurrency}` : undefined}
+          aria-label="Currency"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {currencies.map((currency) => (
             <SelectItem key={currency.code} value={currency.code}>
-              {currency.code}
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden>{regionFor(currency.code).flag}</span>
+                {currency.code}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -183,11 +233,56 @@ function EntryRow({
         size="icon"
         onClick={() => onRemove(row.id)}
         disabled={!canRemove}
-        className="h-9 w-9 text-muted-foreground hover:text-destructive flex-shrink-0"
+        className="h-9 w-9 justify-self-end text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+        title="Remove row"
       >
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
+  );
+}
+
+type Segment = ReturnType<typeof segmentRows>[number];
+
+/** Consecutive segments whose bank shares a currency form one region section. */
+function regionSectionsOf(segments: Segment[], categories: Category[]) {
+  const sections: { key: string; currency: string; segments: Segment[]; rows: BulkEntryRow[] }[] = [];
+  for (const segment of segments) {
+    const lead = categories.find((category) => category.id === segment.lead.categoryId);
+    const currency = defaultCurrencyFor(lead, categories);
+    const last = sections[sections.length - 1];
+    const target =
+      last && last.currency === currency
+        ? last
+        : (sections[sections.push({ key: `${currency}-${segment.lead.id}`, currency, segments: [], rows: [] }) - 1]);
+    target.segments.push(segment);
+    target.rows.push(segment.lead, ...segment.cards);
+  }
+  return sections;
+}
+
+/** Live total of what you've typed in this region, in the region's currency (cards subtract). */
+function RegionSubtotal({
+  rows,
+  categories,
+  currency,
+}: {
+  rows: BulkEntryRow[];
+  categories: Category[];
+  currency: string;
+}) {
+  let total = 0;
+  let filled = 0;
+  for (const row of rows) {
+    const amount = parseFloat(row.amount);
+    if (Number.isNaN(amount) || row.currencyCode !== currency) continue;
+    const category = categories.find((item) => item.id === row.categoryId);
+    total += isCreditCard(category) ? -amount : amount;
+    filled += 1;
+  }
+  if (filled === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <span className="text-sm font-semibold tabular-nums">{formatCurrency(total, currency)}</span>
   );
 }
 
@@ -196,15 +291,13 @@ const BulkEntryForm = ({
   currencies,
   onSubmit,
 }: BulkEntryFormProps) => {
-  const ordered = orderCategories(categories);
+  const ordered = regionOrdered(categories);
   const defaultCat = ordered[0]?.id || "";
-  const defaultCur = "SGD";
+  const defaultCur = defaultCurrencyFor(ordered[0], categories);
 
   const [date, setDate] = useState<Date>(new Date());
   const [rows, setRows] = useState<BulkEntryRow[]>(() =>
-    ordered.length > 0
-      ? ordered.map((cat) => createEmptyRow(cat.id, defaultCur))
-      : [createEmptyRow(defaultCat, defaultCur)]
+    ordered.length > 0 ? rowsFor(categories) : [createEmptyRow(defaultCat, defaultCur)]
   );
   const [isLoading, setIsLoading] = useState(false);
   const initializedRef = useRef(false);
@@ -212,14 +305,19 @@ const BulkEntryForm = ({
   useEffect(() => {
     if (categories.length > 0 && !initializedRef.current) {
       initializedRef.current = true;
-      const next = orderCategories(categories);
-      setRows(next.map((cat) => createEmptyRow(cat.id, defaultCur)));
+      setRows(rowsFor(categories));
     }
-  }, [categories, defaultCur]);
+  }, [categories]);
 
   const updateRow = (id: string, field: keyof BulkEntryRow, value: string) => {
     setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        if (field !== "categoryId") return { ...r, [field]: value };
+        // Switching account resets the currency to that account's default.
+        const category = categories.find((item) => item.id === value);
+        return { ...r, categoryId: value, currencyCode: defaultCurrencyFor(category, categories) };
+      })
     );
   };
 
@@ -257,11 +355,8 @@ const BulkEntryForm = ({
         }))
       );
       toast.success(`${validRows.length} entries saved successfully`);
-      const next = orderCategories(categories);
       setRows(
-        next.length > 0
-          ? next.map((cat) => createEmptyRow(cat.id, defaultCur))
-          : [createEmptyRow(defaultCat, defaultCur)]
+        categories.length > 0 ? rowsFor(categories) : [createEmptyRow(defaultCat, defaultCur)]
       );
     } catch (error) {
       toast.error(
@@ -276,7 +371,7 @@ const BulkEntryForm = ({
     <Card>
       <CardHeader className="pb-4">
         <CardTitle className="text-base font-semibold">
-          Record Wealth Snapshot
+          Record snapshot
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -308,16 +403,22 @@ const BulkEntryForm = ({
             </Popover>
           </div>
 
-          <div className="hidden sm:grid sm:grid-cols-[1fr_120px_100px_1fr_40px] gap-2 text-xs font-medium text-muted-foreground px-1">
-            <span>Category</span>
+          <div className="hidden sm:grid sm:grid-cols-[1fr_150px_104px_1fr_36px] gap-2 text-xs font-medium text-muted-foreground px-1">
+            <span>Account</span>
             <span>Amount</span>
             <span>Currency</span>
             <span>Notes</span>
             <span></span>
           </div>
 
-          <div className="space-y-2">
-            {segmentRows(rows, categories).map((segment) => {
+          <div className="space-y-6">
+            {regionSectionsOf(segmentRows(rows, categories), categories).map((section) => (
+              <section key={section.key} className="space-y-2">
+                <RegionHeading currency={section.currency} className="border-b pb-2">
+                  <RegionSubtotal rows={section.rows} categories={categories} currency={section.currency} />
+                </RegionHeading>
+                <div className="space-y-2">
+            {section.segments.map((segment) => {
               const grouped = segment.cards.length > 0;
               return (
                 <div
@@ -364,6 +465,9 @@ const BulkEntryForm = ({
                 </div>
               );
             })}
+                </div>
+              </section>
+            ))}
           </div>
 
           <Button
@@ -388,7 +492,7 @@ const BulkEntryForm = ({
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {isLoading ? "Saving..." : "Save All Entries"}
+              {isLoading ? "Saving..." : "Save snapshot"}
             </Button>
           </div>
         </CardContent>

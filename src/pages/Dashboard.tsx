@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import WealthChart from "@/components/WealthChart";
 import WealthSummaryCard from "@/components/WealthSummaryCard";
 import CategoryTrends from "@/components/CategoryTrends";
-import AccountBreakdown from "@/components/AccountBreakdown";
+import RegionAccounts from "@/components/RegionAccounts";
 import GoalDialog from "@/components/GoalDialog";
 import { Button } from "@/components/ui/button";
 import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
@@ -140,19 +140,12 @@ const Dashboard = ({
             <Download className="h-3.5 w-3.5" />
             Export
           </Button>
-          <Button
-            size="sm"
-            onClick={() => navigate("/new-entry")}
-            className="gap-1.5 h-8 text-xs"
-          >
-            <Plus className="h-3.5 w-3.5" /> New Entry
-          </Button>
         </div>
       </div>
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:items-start">
+        <div className="lg:col-span-5 xl:col-span-4">
           <WealthSummaryCard
             entries={latestEntries}
             totalAmount={totalAmount}
@@ -163,7 +156,7 @@ const Dashboard = ({
             goals={goals}
           />
         </div>
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-7 xl:col-span-8">
           <WealthChart
             timelineData={sortedTimeline}
             latestEntries={latestEntries}
@@ -174,10 +167,11 @@ const Dashboard = ({
         </div>
       </div>
 
-      <AccountBreakdown
-        accounts={position.accounts}
+      <RegionAccounts
+        entries={latestEntries}
         categories={categories}
         currency={displayCurrency}
+        exchangeRates={exchangeRates}
       />
 
       {/* Category trends */}

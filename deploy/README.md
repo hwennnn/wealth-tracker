@@ -57,3 +57,13 @@ ssh houman-vps 'cd ~/wealth-tracker-db && docker compose exec -T db psql -U post
 
 ssh houman-vps "cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -c \"NOTIFY pgrst, 'reload schema';\""
 ```
+
+`004_category_currency.sql` adds `categories.currency`, the account's home currency. New snapshot rows start in it, and each row can still be changed. It backfills from each account's latest entry, then gives a card with no entries its bank's currency. It only fills NULLs and is safe to re-run. The older frontend ignores the column, so apply it first.
+
+```bash
+scp deploy/migrations/004_category_currency.sql houman-vps:~/wealth-tracker-db/migrations/004_category_currency.sql
+
+ssh houman-vps 'cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -v ON_ERROR_STOP=1 < migrations/004_category_currency.sql'
+
+ssh houman-vps "cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -c \"NOTIFY pgrst, 'reload schema';\""
+```

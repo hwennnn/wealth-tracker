@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { currencies } from "@/lib/currencyData";
 import { getDisplayCurrency, setDisplayCurrency } from "@/lib/currency";
 import { useTheme } from "@/hooks/use-theme";
+import { regionFor } from "@/lib/regions";
 
 type LayoutProps = {
   children: ReactNode;
@@ -44,7 +45,7 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/categories", label: "Categories", icon: Tag },
+    { path: "/categories", label: "Accounts", icon: Tag },
     { path: "/entries", label: "Entries", icon: List },
   ];
 
@@ -68,8 +69,9 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
           <div className="flex items-center gap-4 sm:gap-6">
             {/* Mobile menu button */}
             <button
-              className="md:hidden p-1"
+              className="md:hidden rounded-md border p-1.5"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Menu"
             >
               {mobileMenuOpen ? (
                 <X className="h-5 w-5" />
@@ -113,7 +115,7 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="outline" size="icon" className="h-8 w-8" title="Theme">
                   <ThemeIcon className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -135,23 +137,31 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-1 text-xs font-medium h-8"
+                  className="gap-1.5 text-xs font-semibold h-8 px-2.5"
+                  title="Currency totals are shown in"
                 >
+                  <span className="hidden text-muted-foreground font-normal lg:inline">Show in</span>
+                  <span aria-hidden>{regionFor(displayCurrency).flag}</span>
                   {displayCurrency}
-                  <ChevronDown className="h-3 w-3 opacity-50" />
+                  <ChevronDown className="h-3 w-3 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-60">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  Show totals in
+                </div>
                 {currencies.map((c) => (
                   <DropdownMenuItem
                     key={c.code}
                     onClick={() => handleCurrencyChange(c.code)}
                     className={cn(
-                      displayCurrency === c.code && "bg-primary/10 text-primary"
+                      "gap-2",
+                      displayCurrency === c.code && "bg-primary/10 text-primary font-medium"
                     )}
                   >
-                    <span className="font-medium mr-2">{c.symbol}</span>
-                    {c.code} - {c.name}
+                    <span aria-hidden>{regionFor(c.code).flag}</span>
+                    <span className="w-9 font-semibold">{c.code}</span>
+                    <span className="text-muted-foreground truncate">{c.name}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -163,7 +173,7 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
               className="gap-1.5 h-8 text-xs"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">New Entry</span>
+              <span className="hidden sm:inline">New snapshot</span>
             </Button>
 
             {demo ? (

@@ -23,6 +23,8 @@ WealthTracker is a personal net worth tracking app. Users record periodic "snaps
 - supabase-js is still used as the client library (it speaks PostgREST); the URL is `window.location.origin`
 - Tables: `categories`, `entries`
 - A credit card is a category with `kind = 'credit_card'` and an optional `parent_id` (its bank). Its snapshot rows are normal entries; the amount is the balance owed. Net worth on a date is asset rows minus credit-card rows on that same date (`src/lib/netWorth.ts`). Schema upgrades after first boot are manual: `deploy/migrations/`
+- Each category has a home `currency` (nullable; a card without one uses its bank's, else SGD — `defaultCurrencyFor` in `src/lib/regions.ts`). New snapshot rows start in it; a row can still be recorded in another currency. The UI groups accounts into regions by currency (SGD = amber, USD = blue; red is reserved for card debt)
+- `formatCurrency` always prints an explicit symbol (`US$`, `S$`), never a bare `$`
 - Nightly `pg_dump` via cron (`deploy/scripts/backup.sh`, kept 30 days in `~/wealth-tracker-db/backups`)
 - All queries go through an authenticated Supabase client (Clerk JWT in Authorization header)
 - RLS is enabled — every row is scoped to the authenticated user at the database level
@@ -66,7 +68,7 @@ npm run build    # Production build (outputs to dist/)
 npm run preview  # Preview production build
 ```
 
-Docker deployment uses a multi-stage build: Node for building, nginx:alpine for serving. Build args are required for env vars.
+Coolify builds with the Dockerfile build pack (not nixpacks) and auto-deploys on push to main via the GitHub App webhook at `https://coolify.hwendev.com/webhooks/source/github/events`. Docker deployment uses a multi-stage build: Node for building, nginx:alpine for serving. Build args are required for env vars.
 
 ## Common Patterns
 

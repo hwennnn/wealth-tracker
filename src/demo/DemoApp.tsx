@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Categories from "@/pages/Categories";
 import NewEntry from "@/pages/NewEntry";
 import { currencies } from "@/lib/currencyData";
+import { getDisplayCurrency } from "@/lib/currency";
 import type { Category } from "@/lib/types";
 import type { CategoryDraft } from "@/components/CategoryForm";
 import { demoCategories, demoLatestEntries, demoRates, demoTimeline } from "./demoData";
@@ -17,7 +18,7 @@ import { demoCategories, demoLatestEntries, demoRates, demoTimeline } from "./de
  * Production builds replace import.meta.env.DEV with false, so this route stays closed.
  */
 const DemoApp = () => {
-  const [displayCurrency, setDisplayCurrency] = useState("SGD");
+  const [displayCurrency, setDisplayCurrency] = useState(getDisplayCurrency);
   const [categories, setCategories] = useState<Category[]>(demoCategories);
   const latestEntries = useMemo(() => demoLatestEntries, []);
 
@@ -30,6 +31,7 @@ const DemoApp = () => {
         description: draft.description,
         kind: draft.kind,
         parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+        currency: draft.currency,
         created_at: new Date().toISOString(),
         user_id: "demo-user",
       },
@@ -46,6 +48,7 @@ const DemoApp = () => {
               description: draft.description,
               kind: draft.kind,
               parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+              currency: draft.currency,
             }
           : category
       )

@@ -12,6 +12,8 @@ export type Category = {
   description?: string | null;
   kind?: CategoryKind;
   parent_id?: string | null;
+  /** Home currency of the account. New snapshot rows start in it. */
+  currency?: string | null;
   created_at: string;
   user_id: string;
 };
