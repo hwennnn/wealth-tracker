@@ -67,12 +67,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # WEALTH_USER_ID, MCP_TOKEN, EXCHANGE_RATE_API_KEY, DEFAULT_DISPLAY_CURRENCY
+    env_file: .env.mcp
     environment:
       DATABASE_URL: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@db:5432/wealth
-      WEALTH_USER_ID: ${WEALTH_USER_ID}
-      MCP_TOKEN: ${MCP_TOKEN}
-      EXCHANGE_RATE_API_KEY: ${EXCHANGE_RATE_API_KEY}
-      DEFAULT_DISPLAY_CURRENCY: ${DEFAULT_DISPLAY_CURRENCY:-SGD}
     networks: [internal, coolify]
     labels:
       - traefik.enable=true

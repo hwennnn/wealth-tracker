@@ -68,7 +68,7 @@ npm run build    # Production build (outputs to dist/)
 npm run preview  # Preview production build
 ```
 
-Coolify builds with the Dockerfile build pack (not nixpacks) and auto-deploys on push to main via the GitHub App webhook at `https://coolify.hwendev.com/webhooks/source/github/events`. Docker deployment uses a multi-stage build: Node for building, nginx:alpine for serving. Build args are required for env vars.
+Coolify builds with the Dockerfile build pack (not nixpacks) and auto-deploys on push to main via the GitHub App webhook at `https://coolify.hwendev.com/webhooks/source/github/events`. Coolify watch paths limit web redeploys to web-app files (src/, public/, build config); docs, `deploy/` and `mcp/` changes don't redeploy the SPA. The MCP server (`mcp/`, served at `/mcp`) is deployed with `deploy/scripts/deploy-mcp.sh` on the VPS, and needs a redeploy when `src/lib` changes. Docker deployment uses a multi-stage build: Node for building, nginx:alpine for serving. Build args are required for env vars.
 
 ## Common Patterns
 

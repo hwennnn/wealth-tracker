@@ -72,7 +72,7 @@ ssh houman-vps "cd ~/wealth-tracker-db && docker compose exec -T db psql -U post
 
 `mcp/` is a Streamable HTTP MCP server at `https://wealth.hwendev.com/mcp`, so an agent (e.g. a Grok bot) can do what the dashboard does: read net worth, accounts by region and history, add or edit accounts, record snapshots, fix or delete rows.
 
-- Auth: `Authorization: Bearer $MCP_TOKEN` (in `.env`). Rotate by changing it and running `docker compose up -d mcp`.
+- Auth: `Authorization: Bearer $MCP_TOKEN` (in `.env.mcp`, see `.env.mcp.example`). Rotate by changing it and running `docker compose up -d mcp`.
 - Data access: it connects as `authenticator`, switches to `web_user` and sets `request.jwt.claims.sub = WEALTH_USER_ID`, so the same RLS policies as the web app apply.
 - Numbers: it imports `src/lib/netWorth.ts`, `regions.ts` and `money.ts`, so totals match the dashboard.
 - Stateless: each POST builds a fresh server. There are no sessions to lose on restart.
