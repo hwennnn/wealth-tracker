@@ -29,20 +29,29 @@ const CategoryList = ({ categories, onEdit, onDelete }: CategoryListProps) => {
         ) : (
           <div className="space-y-3">
             {groupCategories(categories).map((group) => (
-              <div key={group.lead.id} className="space-y-1.5">
+              <div key={group.lead.id}>
                 <CategoryRow category={group.lead} categories={categories} onEdit={onEdit} onDelete={onDelete} />
                 {group.cards.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="relative ml-3 mt-1.5 border-l border-foreground/30 sm:ml-5">
                     {group.cards.map((category, index) => (
-                      <CategoryRow
+                      <div
                         key={category.id}
-                        category={category}
-                        categories={categories}
-                        nested
-                        last={index === group.cards.length - 1}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                      />
+                        className={cn("relative pl-3", index > 0 && "mt-1.5")}
+                      >
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-1/2 h-px w-3 -translate-y-1/2 bg-foreground/30"
+                        />
+                        {index === group.cards.length - 1 && (
+                          <span aria-hidden className="absolute -left-px top-1/2 bottom-0 w-px bg-card" />
+                        )}
+                        <CategoryRow
+                          category={category}
+                          categories={categories}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -78,36 +87,23 @@ function groupCategories(categories: Category[]) {
 function CategoryRow({
   category,
   categories,
-  nested,
-  last,
   onEdit,
   onDelete,
 }: {
   category: Category;
   categories: Category[];
-  nested?: boolean;
-  last?: boolean;
   onEdit: (category: Category) => void;
   onDelete: (category: Category) => void;
 }) {
   const bank = category.parent_id
-    ? categories.find((item) => item.id === category.parent_id)
+    ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
     : undefined;
   return (
-    <div className={cn("relative", nested && "ml-4 pl-3 sm:ml-6")}>
-      {nested && (
-        <>
-          <span
-            aria-hidden
-            className={cn(
-              "absolute left-0 w-px bg-foreground/25",
-              last ? "-top-1.5 h-7" : "-top-1.5 -bottom-1.5"
-            )}
-          />
-          <span aria-hidden className="absolute left-0 top-6 h-px w-3 bg-foreground/25" />
-        </>
-      )}
-      <div className="flex items-center justify-between p-4 bg-muted/40 border rounded-lg hover:bg-muted/80 transition-colors duration-150">
+    <div>
+      <div
+        className="flex items-center justify-between p-4 bg-muted/40 border rounded-lg hover:bg-muted/80 transition-colors duration-150"
+        title={bank ? `Linked to ${bank.name}` : undefined}
+      >
         <div className="flex items-center space-x-3 min-w-0">
           {isCreditCard(category) ? (
             <CreditCard className="h-5 w-5 text-muted-foreground shrink-0" />

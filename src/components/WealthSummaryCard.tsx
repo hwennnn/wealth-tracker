@@ -162,64 +162,106 @@ const WealthSummaryCard = ({
         )}
 
         {/* Asset breakdown */}
-        <div className="space-y-0.5">
-          {convertedEntries
-            .slice()
-            .sort((a, b) => {
-              const order = new Map(orderCategories(categories).map((category, index) => [category.id, index]));
-              return (order.get(a.category_id) ?? 999) - (order.get(b.category_id) ?? 999);
-            })
-            .map((entry) => {
-              const category = categories.find((item) => item.id === entry.category_id);
-              const card = isCreditCard(category);
-              const bank =
-                card && category?.parent_id
-                  ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
-                  : undefined;
-              const shown = card ? -entry.convertedAmount : entry.convertedAmount;
-              return (
-                <div
-                  key={entry.id}
-                  className={`relative flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 ${
-                    bank ? "ml-3 pl-3" : ""
-                  }`}
-                >
-                  {bank && (
-                    <>
-                      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-px bg-foreground/25" />
-                      <span aria-hidden className="absolute left-0 top-1/2 h-px w-2.5 bg-foreground/25" />
-                    </>
-                  )}
-                  <div className="min-w-0 flex-1 mr-3">
-                    <p className="text-sm font-medium truncate flex items-center gap-1.5">
-                      {card && <CreditCard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                      <span className="truncate">
-                        {categoryMap.get(entry.category_id) || "Uncategorized"}
-                      </span>
-                    </p>
-                    {(bank || entry.notes) && (
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {bank ? `Card · ${bank.name}` : entry.notes}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
-                      {formatCurrency(shown, currency)}
-                    </p>
-                    {entry.currency !== currency && (
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-        </div>
+        <SummaryRows entries={convertedEntries} categories={categories} currency={currency} categoryMap={categoryMap} />
       </CardContent>
     </Card>
   );
 };
+
+function SummaryRows({
+  entries,
+  categories,
+  currency,
+  categoryMap,
+}: {
+  entries: (Entry & { convertedAmount: number })[];
+  categories: Category[];
+  currency: string;
+  categoryMap: Map<string, string>;
+}) {
+  const order = new Map(orderCategories(categories).map((category, index) => [category.id, index]));
+  const sorted = entries
+    .slice()
+    .sort((a, b) => (order.get(a.category_id) ?? 999) - (order.get(b.category_id) ?? 999));
+  const blocks: { lead: (typeof sorted)[number] | null; cards: typeof sorted }[] = [];
+
+  for (const entry of sorted) {
+    const category = categories.find((item) => item.id === entry.category_id);
+    const bank =
+      isCreditCard(category) && category?.parent_id
+        ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
+        : undefined;
+    const previous = blocks[blocks.length - 1];
+    if (bank && previous && previous.lead?.category_id === bank.id) {
+      previous.cards.push(entry);
+    } else if (!bank) {
+      blocks.push({ lead: entry, cards: [] });
+    } else {
+      blocks.push({ lead: null, cards: [entry] });
+    }
+  }
+
+  const line = (entry: (typeof sorted)[number]) => {
+    const category = categories.find((item) => item.id === entry.category_id);
+    const card = isCreditCard(category);
+    const shown = card ? -entry.convertedAmount : entry.convertedAmount;
+    const bank = card && category?.parent_id
+      ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
+      : undefined;
+    return (
+      <div
+        key={entry.id}
+        className="flex items-center justify-between gap-3 border-b border-border/40 py-1.5 last:border-0"
+        title={bank ? `Linked to ${bank.name}` : undefined}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            {card && <CreditCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+            <span className="truncate">{categoryMap.get(entry.category_id) || "Uncategorized"}</span>
+          </p>
+          {entry.notes && (
+            <p className="truncate text-xs text-muted-foreground">{entry.notes}</p>
+          )}
+        </div>
+        <div className="flex-shrink-0 text-right">
+          <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
+            {formatCurrency(shown, currency)}
+          </p>
+          {entry.currency !== currency && (
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {blocks.map((block, index) => (
+        <div key={block.lead?.id ?? `cards-${index}`}>
+          {block.lead && line(block.lead)}
+          {block.cards.length > 0 && (
+            <div className="relative ml-2 border-l border-foreground/30">
+              {block.cards.map((entry, cardIndex) => (
+                <div key={entry.id} className="relative pl-3">
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-1/2 h-px w-2.5 -translate-y-1/2 bg-foreground/30"
+                  />
+                  {cardIndex === block.cards.length - 1 && (
+                    <span aria-hidden className="absolute -left-px top-1/2 bottom-0 w-px bg-card" />
+                  )}
+                  {line(entry)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default WealthSummaryCard;

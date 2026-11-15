@@ -79,33 +79,30 @@ const AccountBreakdown = ({
                   </div>
                 </div>
                 {account.cards.length > 0 && (
-                  <ul className="space-y-1 border-t pt-2">
-                    {account.cards.map((card, index) => {
-                      const last = index === account.cards.length - 1;
-                      return (
-                        <li key={card.categoryId} className="relative ml-1.5 pl-3">
-                          <span
-                            aria-hidden
-                            className={`absolute left-0 w-px bg-foreground/25 ${
-                              last ? "-top-1 h-4" : "-top-1 -bottom-1"
-                            }`}
-                          />
-                          <span
-                            aria-hidden
-                            className="absolute left-0 top-2 h-px w-2.5 bg-foreground/25"
-                          />
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="min-w-0 truncate text-muted-foreground flex items-center gap-1.5">
-                              <CreditCard className="h-3 w-3 shrink-0" />
-                              {categoryMap.get(card.categoryId) || "Card"}
-                            </span>
-                            <span className="tabular-nums font-medium text-red-500 flex-shrink-0">
-                              {formatCurrency(-card.amount, currency)}
-                            </span>
-                          </div>
-                        </li>
-                      );
-                    })}
+                  <ul className="relative ml-1.5 mt-1 border-l border-foreground/30">
+                    {account.cards.map((card, index) => (
+                      <li key={card.categoryId} className="relative py-1 pl-3">
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-1/2 h-px w-2.5 -translate-y-1/2 bg-foreground/30"
+                        />
+                        {index === account.cards.length - 1 && (
+                          <span aria-hidden className="absolute -left-px top-1/2 bottom-0 w-px bg-card" />
+                        )}
+                        <div
+                          className="flex items-center justify-between gap-2 text-xs"
+                          title={`Linked to ${name}`}
+                        >
+                          <span className="min-w-0 truncate text-muted-foreground flex items-center gap-1.5">
+                            <CreditCard className="h-3 w-3 shrink-0" />
+                            {categoryMap.get(card.categoryId) || "Card"}
+                          </span>
+                          <span className="tabular-nums font-medium text-red-500 flex-shrink-0">
+                            {formatCurrency(-card.amount, currency)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>

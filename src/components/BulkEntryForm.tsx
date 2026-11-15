@@ -89,7 +89,6 @@ function EntryRow({
   currencies,
   chrome,
   nested,
-  last,
   onUpdate,
   onRemove,
   canRemove,
@@ -100,7 +99,6 @@ function EntryRow({
   currencies: Currency[];
   chrome?: boolean;
   nested?: boolean;
-  last?: boolean;
   onUpdate: (id: string, field: keyof BulkEntryRow, value: string) => void;
   onRemove: (id: string) => void;
   canRemove: boolean;
@@ -112,28 +110,22 @@ function EntryRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_1fr_40px] gap-2 items-start",
-        chrome && "rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0"
+        "grid grid-cols-1 gap-2 sm:h-9 sm:grid-cols-[1fr_120px_100px_1fr_40px] sm:items-center sm:gap-2",
+        chrome && "rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0 sm:h-9"
       )}
     >
-      <div className={cn("min-w-0", nested && "relative pl-5")}>
+      <div className={cn("relative min-w-0", nested && "sm:pl-5")}>
         {nested && (
-          <>
-            <span
-              aria-hidden
-              className={cn(
-                "absolute left-[7px] w-px bg-foreground/25",
-                last ? "-top-1.5 h-[26px]" : "-top-1.5 -bottom-1.5"
-              )}
-            />
-            <span
-              aria-hidden
-              className="absolute left-[7px] top-[18px] h-px w-2.5 bg-foreground/25"
-            />
-          </>
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 hidden h-px w-5 -translate-y-1/2 bg-foreground/30 sm:block"
+          />
         )}
         <Select value={row.categoryId} onValueChange={(value) => onUpdate(row.id, "categoryId", value)}>
-          <SelectTrigger className="h-9 text-sm">
+          <SelectTrigger
+            className="h-9 text-sm"
+            title={bank ? `Linked to ${bank.name}` : undefined}
+          >
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -149,11 +141,6 @@ function EntryRow({
             ))}
           </SelectContent>
         </Select>
-        {bank && (
-          <p className="mt-1 text-[11px] leading-none text-muted-foreground truncate">
-            Card · {bank.name}
-          </p>
-        )}
       </div>
 
       <Input
@@ -336,8 +323,8 @@ const BulkEntryForm = ({
                 <div
                   key={segment.lead.id}
                   className={cn(
-                    grouped &&
-                      "space-y-1.5 rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0"
+                    "relative",
+                    grouped && "rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0"
                   )}
                 >
                   <EntryRow
@@ -350,23 +337,29 @@ const BulkEntryForm = ({
                     onRemove={removeRow}
                     canRemove={rows.length > 1}
                   />
-                  {segment.cards.length > 0 && (
-                    <div className="space-y-1.5">
-                      {segment.cards.map((cardRow, index) => (
-                        <EntryRow
-                          key={cardRow.id}
-                          row={cardRow}
-                          categories={categories}
-                          ordered={ordered}
-                          currencies={currencies}
-                          nested
-                          last={index === segment.cards.length - 1}
-                          onUpdate={updateRow}
-                          onRemove={removeRow}
-                          canRemove={rows.length > 1}
-                        />
-                      ))}
-                    </div>
+                  {grouped && (
+                    <>
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-0 top-9 z-10 hidden w-px bg-foreground/30 sm:block"
+                        style={{ height: `calc(${segment.cards.length} * 2.75rem - 1.125rem)` }}
+                      />
+                      <div className="relative mt-3 space-y-3 border-l border-foreground/30 pl-3 sm:mt-2 sm:space-y-2 sm:border-l-0 sm:pl-0">
+                        {segment.cards.map((cardRow) => (
+                          <EntryRow
+                            key={cardRow.id}
+                            row={cardRow}
+                            categories={categories}
+                            ordered={ordered}
+                            currencies={currencies}
+                            nested
+                            onUpdate={updateRow}
+                            onRemove={removeRow}
+                            canRemove={rows.length > 1}
+                          />
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               );
