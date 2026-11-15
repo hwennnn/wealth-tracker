@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/card";
 import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { isCreditCard, netPosition } from "@/lib/netWorth";
+import { isCreditCard, netPosition, orderCategories } from "@/lib/netWorth";
 import { TrendingUp, TrendingDown, Minus, Target, CreditCard } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { WealthGoal } from "@/lib/goals";
@@ -162,41 +162,60 @@ const WealthSummaryCard = ({
         )}
 
         {/* Asset breakdown */}
-        <div className="space-y-1">
-          {convertedEntries.map((entry) => {
-            const card = isCreditCard(
-              categories.find((category) => category.id === entry.category_id)
-            );
-            const shown = card ? -entry.convertedAmount : entry.convertedAmount;
-            return (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0"
-              >
-                <div className="min-w-0 flex-1 mr-3">
-                  <p className="text-sm font-medium truncate flex items-center gap-1.5">
-                    {card && <CreditCard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                    <span className="truncate">
-                      {categoryMap.get(entry.category_id) || "Uncategorized"}
-                    </span>
-                  </p>
-                  {entry.notes && (
-                    <p className="text-xs text-muted-foreground truncate">{entry.notes}</p>
+        <div className="space-y-0.5">
+          {convertedEntries
+            .slice()
+            .sort((a, b) => {
+              const order = new Map(orderCategories(categories).map((category, index) => [category.id, index]));
+              return (order.get(a.category_id) ?? 999) - (order.get(b.category_id) ?? 999);
+            })
+            .map((entry) => {
+              const category = categories.find((item) => item.id === entry.category_id);
+              const card = isCreditCard(category);
+              const bank =
+                card && category?.parent_id
+                  ? categories.find((item) => item.id === category.parent_id && !isCreditCard(item))
+                  : undefined;
+              const shown = card ? -entry.convertedAmount : entry.convertedAmount;
+              return (
+                <div
+                  key={entry.id}
+                  className={`relative flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 ${
+                    bank ? "ml-3 pl-3" : ""
+                  }`}
+                >
+                  {bank && (
+                    <>
+                      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-px bg-foreground/25" />
+                      <span aria-hidden className="absolute left-0 top-1/2 h-px w-2.5 bg-foreground/25" />
+                    </>
                   )}
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
-                    {formatCurrency(shown, currency)}
-                  </p>
-                  {entry.currency !== currency && (
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
+                  <div className="min-w-0 flex-1 mr-3">
+                    <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                      {card && <CreditCard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      <span className="truncate">
+                        {categoryMap.get(entry.category_id) || "Uncategorized"}
+                      </span>
                     </p>
-                  )}
+                    {(bank || entry.notes) && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {bank ? `Card · ${bank.name}` : entry.notes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
+                      {formatCurrency(shown, currency)}
+                    </p>
+                    {entry.currency !== currency && (
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </CardContent>
     </Card>

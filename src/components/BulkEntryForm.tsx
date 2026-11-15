@@ -46,6 +46,164 @@ function createEmptyRow(defaultCategory: string, defaultCurrency: string): BulkE
   };
 }
 
+function parentBank(category: Category | undefined, categories: Category[]): Category | null {
+  if (!category || !isCreditCard(category) || !category.parent_id) return null;
+  const parent = categories.find((item) => item.id === category.parent_id);
+  if (!parent || isCreditCard(parent)) return null;
+  return parent;
+}
+
+function segmentRows(rows: BulkEntryRow[], categories: Category[]) {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const segments: { lead: BulkEntryRow; cards: BulkEntryRow[] }[] = [];
+  let index = 0;
+  while (index < rows.length) {
+    const lead = rows[index];
+    const category = byId.get(lead.categoryId);
+    const cards: BulkEntryRow[] = [];
+    if (category && !isCreditCard(category)) {
+      let next = index + 1;
+      while (next < rows.length) {
+        const child = byId.get(rows[next].categoryId);
+        if (child && isCreditCard(child) && child.parent_id === category.id) {
+          cards.push(rows[next]);
+          next += 1;
+        } else {
+          break;
+        }
+      }
+      segments.push({ lead, cards });
+      index = next;
+    } else {
+      segments.push({ lead, cards });
+      index += 1;
+    }
+  }
+  return segments;
+}
+
+function EntryRow({
+  row,
+  categories,
+  ordered,
+  currencies,
+  chrome,
+  nested,
+  last,
+  onUpdate,
+  onRemove,
+  canRemove,
+}: {
+  row: BulkEntryRow;
+  categories: Category[];
+  ordered: Category[];
+  currencies: Currency[];
+  chrome?: boolean;
+  nested?: boolean;
+  last?: boolean;
+  onUpdate: (id: string, field: keyof BulkEntryRow, value: string) => void;
+  onRemove: (id: string) => void;
+  canRemove: boolean;
+}) {
+  const selected = categories.find((category) => category.id === row.categoryId);
+  const card = isCreditCard(selected);
+  const bank = parentBank(selected, categories);
+
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_1fr_40px] gap-2 items-start",
+        chrome && "rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0"
+      )}
+    >
+      <div className={cn("min-w-0", nested && "relative pl-5")}>
+        {nested && (
+          <>
+            <span
+              aria-hidden
+              className={cn(
+                "absolute left-[7px] w-px bg-foreground/25",
+                last ? "-top-1.5 h-[26px]" : "-top-1.5 -bottom-1.5"
+              )}
+            />
+            <span
+              aria-hidden
+              className="absolute left-[7px] top-[18px] h-px w-2.5 bg-foreground/25"
+            />
+          </>
+        )}
+        <Select value={row.categoryId} onValueChange={(value) => onUpdate(row.id, "categoryId", value)}>
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            {ordered.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id}>
+                <span className="flex items-center gap-1.5">
+                  {isCreditCard(cat) && (
+                    <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  {cat.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {bank && (
+          <p className="mt-1 text-[11px] leading-none text-muted-foreground truncate">
+            Card · {bank.name}
+          </p>
+        )}
+      </div>
+
+      <Input
+        type="number"
+        value={row.amount}
+        onChange={(event) => onUpdate(row.id, "amount", event.target.value)}
+        placeholder="0.00"
+        step="0.01"
+        min="0"
+        className="h-9 text-sm"
+        aria-label={card ? `Balance owed for ${selected?.name}` : `Amount for ${selected?.name ?? "category"}`}
+      />
+
+      <Select
+        value={row.currencyCode}
+        onValueChange={(value) => onUpdate(row.id, "currencyCode", value)}
+      >
+        <SelectTrigger className="h-9 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {currencies.map((currency) => (
+            <SelectItem key={currency.code} value={currency.code}>
+              {currency.code}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Input
+        value={row.notes}
+        onChange={(event) => onUpdate(row.id, "notes", event.target.value)}
+        placeholder="Notes (optional)"
+        className="h-9 text-sm"
+      />
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemove(row.id)}
+        disabled={!canRemove}
+        className="h-9 w-9 text-muted-foreground hover:text-destructive flex-shrink-0"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 const BulkEntryForm = ({
   categories,
   currencies,
@@ -172,81 +330,44 @@ const BulkEntryForm = ({
           </div>
 
           <div className="space-y-2">
-            {rows.map((row) => {
-              const selected = categories.find((category) => category.id === row.categoryId);
-              const card = isCreditCard(selected);
+            {segmentRows(rows, categories).map((segment) => {
+              const grouped = segment.cards.length > 0;
               return (
                 <div
-                  key={row.id}
-                  className="grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_1fr_40px] gap-2 items-start p-3 sm:p-0 rounded-lg sm:rounded-none bg-muted/30 sm:bg-transparent"
+                  key={segment.lead.id}
+                  className={cn(
+                    grouped &&
+                      "space-y-1.5 rounded-lg bg-muted/30 p-3 sm:rounded-none sm:bg-transparent sm:p-0"
+                  )}
                 >
-                  <div>
-                    <Select
-                      value={row.categoryId}
-                      onValueChange={(v) => updateRow(row.id, "categoryId", v)}
-                    >
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ordered.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            <span className="flex items-center gap-1.5">
-                              {isCreditCard(cat) && (
-                                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                              )}
-                              {cat.name}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Input
-                    type="number"
-                    value={row.amount}
-                    onChange={(e) => updateRow(row.id, "amount", e.target.value)}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="h-9 text-sm"
-                    aria-label={card ? `Balance owed for ${selected?.name}` : `Amount for ${selected?.name ?? "category"}`}
+                  <EntryRow
+                    row={segment.lead}
+                    categories={categories}
+                    ordered={ordered}
+                    currencies={currencies}
+                    chrome={!grouped}
+                    onUpdate={updateRow}
+                    onRemove={removeRow}
+                    canRemove={rows.length > 1}
                   />
-
-                  <Select
-                    value={row.currencyCode}
-                    onValueChange={(v) => updateRow(row.id, "currencyCode", v)}
-                  >
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.code}
-                        </SelectItem>
+                  {segment.cards.length > 0 && (
+                    <div className="space-y-1.5">
+                      {segment.cards.map((cardRow, index) => (
+                        <EntryRow
+                          key={cardRow.id}
+                          row={cardRow}
+                          categories={categories}
+                          ordered={ordered}
+                          currencies={currencies}
+                          nested
+                          last={index === segment.cards.length - 1}
+                          onUpdate={updateRow}
+                          onRemove={removeRow}
+                          canRemove={rows.length > 1}
+                        />
                       ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Input
-                    value={row.notes}
-                    onChange={(e) => updateRow(row.id, "notes", e.target.value)}
-                    placeholder="Notes (optional)"
-                    className="h-9 text-sm"
-                  />
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeRow(row.id)}
-                    disabled={rows.length <= 1}
-                    className="h-9 w-9 text-muted-foreground hover:text-destructive flex-shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
