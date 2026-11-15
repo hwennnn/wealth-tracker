@@ -322,7 +322,7 @@ const CardsPage = ({
                                     </p>
                                   </div>
                                   <div className="flex items-center gap-1 flex-shrink-0">
-                                    <span className="font-semibold tabular-nums text-red-500">
+                                    <span className="min-w-[7.5rem] text-right font-semibold tabular-nums text-red-500">
                                       {formatCurrency(-statement.balance_owed, statement.currency)}
                                     </span>
                                     <Button

@@ -17,7 +17,7 @@ import {
 import { ArrowRight, CreditCard as CreditCardIcon, Download, Plus, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/currency";
-import { netPosition } from "@/lib/netWorth";
+import { netPosition, todayKey } from "@/lib/netWorth";
 import {
   WealthGoal,
   getGoals,
@@ -67,6 +67,7 @@ const Dashboard = ({
         statements,
         displayCurrency,
         exchangeRates,
+        asOf: todayKey(),
         categoryOrder: categories.map((category) => category.id),
       }),
     [latestEntries, cards, statements, displayCurrency, exchangeRates, categories]

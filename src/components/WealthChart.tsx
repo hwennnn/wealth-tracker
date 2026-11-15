@@ -6,8 +6,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
-import { convertAmount, formatCurrency } from "@/lib/currency";
-import { dateKey, netPosition } from "@/lib/netWorth";
+import { formatCurrency } from "@/lib/currency";
+import { assetAllocation, seriesAtDates, todayKey } from "@/lib/netWorth";
 import { format, subMonths } from "date-fns";
 import {
   Area,
@@ -56,6 +56,10 @@ const TIME_RANGES: { key: TimeRange; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
+function padAxis(value: number): number {
+  return Math.max(Math.abs(value) * 0.04, 1);
+}
+
 const WealthChart = ({
   timelineData,
   latestEntries,
@@ -67,11 +71,7 @@ const WealthChart = ({
 }: WealthChartProps) => {
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-
-  const convertedAmount = (amount: number, fromCurrency: string) => {
-    if (!exchangeRates || fromCurrency === currency) return amount;
-    return convertAmount(amount, fromCurrency, currency, exchangeRates);
-  };
+  const asOfToday = todayKey();
 
   const now = new Date();
   const rangeStart =
@@ -87,39 +87,39 @@ const WealthChart = ({
     ? timelineData.filter((t) => new Date(t.date) >= rangeStart)
     : timelineData;
 
-  const lineChartData = filteredTimeline
-    .map((timeline) => {
-      const position = netPosition({
-        entries: timeline.entries,
-        cards,
-        statements,
-        displayCurrency: currency,
-        exchangeRates,
-        asOf: dateKey(timeline.date),
-      });
-      return {
-        date: new Date(timeline.date).getTime(),
-        dateLabel: format(new Date(timeline.date), "dd MMM yy"),
-        amount: Math.round(position.net * 100) / 100,
-      };
-    })
+  const lineChartData = seriesAtDates({
+    points: filteredTimeline.map((timeline) => ({
+      date: timeline.date,
+      entries: timeline.entries,
+    })),
+    cards,
+    statements,
+    displayCurrency: currency,
+    exchangeRates,
+  })
+    .map((point) => ({
+      date: new Date(point.date).getTime(),
+      dateLabel: format(new Date(`${point.date}T12:00:00`), "dd MMM yy"),
+      amount: point.net,
+      assets: point.assets,
+      liabilities: point.liabilities,
+    }))
     .sort((a, b) => a.date - b.date);
 
-  const latestLiabilities = netPosition({
+  const allocation = assetAllocation({
     entries: latestEntries,
     cards,
     statements,
     displayCurrency: currency,
     exchangeRates,
-  }).liabilities;
+    asOf: asOfToday,
+  });
+  const latestLiabilities = allocation.liabilities;
 
-  const pieChartData = latestEntries
-    .map((entry) => ({
-      name: categoryMap.get(entry.category_id) || entry.notes || "Unknown",
-      value:
-        Math.round(convertedAmount(entry.amount, entry.currency) * 100) / 100,
-    }))
-    .sort((a, b) => b.value - a.value);
+  const pieChartData = allocation.slices.map((slice) => ({
+    name: categoryMap.get(slice.categoryId) || "Account",
+    value: slice.value,
+  }));
 
   const totalPieValue = pieChartData.reduce((s, d) => s + d.value, 0);
 
@@ -128,18 +128,25 @@ const WealthChart = ({
     payload,
   }: {
     active?: boolean;
-    payload?: { payload: { dateLabel: string; amount: number } }[];
+    payload?: {
+      payload: { dateLabel: string; amount: number; assets: number; liabilities: number };
+    }[];
   }) => {
     if (!active || !payload?.length) return null;
     const data = payload[0].payload;
     return (
       <div className="rounded-lg border bg-card px-3 py-2 shadow-lg text-sm">
-        <p className="text-xs text-muted-foreground mb-0.5">
-          {data.dateLabel}
-        </p>
-        <p className="font-semibold">
-          {formatCurrency(data.amount, currency)}
-        </p>
+        <p className="text-xs text-muted-foreground mb-0.5">{data.dateLabel}</p>
+        <p className="font-semibold tabular-nums">{formatCurrency(data.amount, currency)}</p>
+        {data.liabilities > 0 && (
+          <p className="text-xs text-muted-foreground tabular-nums mt-1">
+            Assets {formatCurrency(data.assets, currency)}
+            <span className="text-red-500">
+              {" "}
+              · Cards {formatCurrency(-data.liabilities, currency)}
+            </span>
+          </p>
+        )}
       </div>
     );
   };
@@ -246,7 +253,10 @@ const WealthChart = ({
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    domain={["dataMin", "dataMax"]}
+                    domain={[
+                      (min: number) => min - padAxis(min),
+                      (max: number) => max + padAxis(max),
+                    ]}
                     tickFormatter={(v) => formatCurrency(v, currency, true)}
                     tick={{ fontSize: 10 }}
                     tickLine={false}
@@ -282,9 +292,7 @@ const WealthChart = ({
             Asset Distribution
           </CardTitle>
           <CardDescription>
-            {latestLiabilities > 0
-              ? "Assets only. Card balances are subtracted in the total."
-              : "Breakdown by category"}
+            Share of assets. Credit cards are not slices — Net subtracts them.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -353,6 +361,32 @@ const WealthChart = ({
               </div>
             </div>
           )}
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 px-3 py-2.5 text-xs">
+            <div className="min-w-0">
+              <p className="text-muted-foreground">Assets</p>
+              <p className="font-semibold tabular-nums mt-0.5 truncate">
+                {formatCurrency(allocation.assets, currency)}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-muted-foreground">Cards</p>
+              <p
+                className={`font-semibold tabular-nums mt-0.5 truncate ${
+                  allocation.liabilities > 0 ? "text-red-500" : ""
+                }`}
+              >
+                {allocation.liabilities > 0
+                  ? formatCurrency(-allocation.liabilities, currency)
+                  : formatCurrency(0, currency)}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-muted-foreground">Net</p>
+              <p className="font-semibold tabular-nums mt-0.5 truncate">
+                {formatCurrency(allocation.net, currency)}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

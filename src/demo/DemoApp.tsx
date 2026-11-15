@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Layout from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
 import CardsPage from "@/pages/Cards";
+import NewEntry from "@/pages/NewEntry";
+import { currencies } from "@/lib/currencyData";
 import type { CreditCard, CreditCardInput, CreditCardStatement, StatementInput } from "@/lib/types";
 import {
   demoCards,
@@ -147,6 +149,25 @@ const DemoApp = () => {
                   onAddStatement={addStatement}
                   onUpdateStatement={updateStatement}
                   onDeleteStatement={deleteStatement}
+                />
+              </Layout>
+            }
+          />
+          <Route
+            path="/new-entry"
+            element={
+              <Layout demo onCurrencyChange={setDisplayCurrency}>
+                <NewEntry
+                  categories={demoCategories}
+                  currencies={currencies}
+                  cards={cards}
+                  displayCurrency={displayCurrency}
+                  exchangeRates={demoRates}
+                  onAddEntries={async () => {}}
+                  onAddStatements={async (inputs) => {
+                    for (const input of inputs) await addStatement(input);
+                  }}
+                  onAddCard={addCard}
                 />
               </Layout>
             }

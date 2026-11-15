@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/card";
 import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { dateKey, netPosition } from "@/lib/netWorth";
+import { dateKey, netPosition, todayKey } from "@/lib/netWorth";
 import { TrendingUp, TrendingDown, Minus, Target, CreditCard as CreditCardIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { WealthGoal } from "@/lib/goals";
@@ -44,6 +44,7 @@ const WealthSummaryCard = ({
     displayCurrency: currency,
     exchangeRates,
     categoryOrder,
+    asOf: todayKey(),
   });
 
   const convertEntry = (amount: number, from: string) => {
@@ -171,7 +172,8 @@ const WealthSummaryCard = ({
             </div>
             <Progress value={goalProgress} className="h-1.5" />
             <p className="text-xs text-muted-foreground">
-              {goalProgress.toFixed(0)}% reached
+              {goalProgress.toFixed(0)}% of net worth
+              {current.liabilities > 0 ? ", after cards" : ""}
             </p>
           </div>
         )}

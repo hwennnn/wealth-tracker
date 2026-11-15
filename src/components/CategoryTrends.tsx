@@ -6,8 +6,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Category, CreditCard, CreditCardStatement, ExchangeRates, TimelineEntry } from "@/lib/types";
-import { convertAmount, formatCurrency } from "@/lib/currency";
-import { dateKey, netPosition } from "@/lib/netWorth";
+import { formatCurrency } from "@/lib/currency";
+import { seriesAtDates } from "@/lib/netWorth";
 import { format } from "date-fns";
 import {
   Area,
@@ -47,55 +47,45 @@ const CategoryTrends = ({
   statements,
 }: CategoryTrendsProps) => {
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-
-  const convertEntry = (amount: number, from: string) => {
-    if (!exchangeRates || from === currency) return amount;
-    return convertAmount(amount, from, currency, exchangeRates);
-  };
-
-  // Build per-category trend data
   const sorted = [...timelineEntries].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
+  const points = sorted.map((timeline) => ({
+    date: timeline.date,
+    entries: timeline.entries,
+  }));
 
-  // Get unique category IDs that appear in entries
   const activeCategoryIds = new Set<string>();
-  for (const t of timelineEntries) {
-    for (const e of t.entries) {
-      activeCategoryIds.add(e.category_id);
-    }
+  for (const timeline of timelineEntries) {
+    for (const entry of timeline.entries) activeCategoryIds.add(entry.category_id);
   }
+  for (const card of cards) activeCategoryIds.add(card.category_id);
 
   const categoryTrends = Array.from(activeCategoryIds).map((catId) => {
-    const data = sorted
-      .map((t) => {
-        const catEntries = t.entries.filter((e) => e.category_id === catId);
-        if (catEntries.length === 0) return null;
-        const total = catEntries.reduce(
-          (s, e) => s + convertEntry(e.amount, e.currency),
-          0
-        );
-        const liability = netPosition({
-          entries: [],
-          cards: cards.filter((card) => card.category_id === catId),
-          statements,
-          displayCurrency: currency,
-          exchangeRates,
-          asOf: dateKey(t.date),
-        }).liabilities;
-        return {
-          dateLabel: format(new Date(t.date), "dd MMM yy"),
-          amount: Math.round((total - liability) * 100) / 100,
-        };
-      })
-      .filter(Boolean) as { dateLabel: string; amount: number }[];
+    const hasCards = cards.some((card) => card.category_id === catId);
+    const data = seriesAtDates({
+      points,
+      cards,
+      statements,
+      displayCurrency: currency,
+      exchangeRates,
+      categoryId: catId,
+    })
+      .filter((point) => point.assets !== 0 || point.liabilities !== 0)
+      .map((point) => ({
+        dateLabel: format(new Date(`${point.date}T12:00:00`), "dd MMM yy"),
+        amount: point.net,
+        assets: point.assets,
+        liabilities: point.liabilities,
+      }));
 
     return {
       categoryId: catId,
       name: categoryMap.get(catId) || "Unknown",
+      hasCards,
       data,
     };
-  });
+  }).filter((trend) => trend.data.length > 0);
 
   if (categoryTrends.length === 0) {
     return null;
@@ -108,7 +98,7 @@ const CategoryTrends = ({
           Category Trends
         </CardTitle>
         <CardDescription>
-          Per account over time, net of any credit cards on that account
+          Per account. A card balance is subtracted from its statement date.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -119,12 +109,15 @@ const CategoryTrends = ({
               className="rounded-lg border p-3 space-y-2"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <div
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ backgroundColor: COLORS[idx % COLORS.length] }}
                   />
-                  <span className="text-sm font-medium">{cat.name}</span>
+                  <span className="text-sm font-medium truncate">{cat.name}</span>
+                  {cat.hasCards && (
+                    <span className="text-[11px] text-muted-foreground">Net</span>
+                  )}
                 </div>
                 {cat.data.length > 0 && (
                   <span className="text-sm font-semibold tabular-nums">
@@ -169,12 +162,15 @@ const CategoryTrends = ({
                           const d = payload[0].payload;
                           return (
                             <div className="rounded border bg-card px-2 py-1 shadow text-xs">
-                              <p className="text-muted-foreground">
-                                {d.dateLabel}
-                              </p>
-                              <p className="font-semibold">
+                              <p className="text-muted-foreground">{d.dateLabel}</p>
+                              <p className="font-semibold tabular-nums">
                                 {formatCurrency(d.amount, currency)}
                               </p>
+                              {d.liabilities > 0 && (
+                                <p className="text-red-500 tabular-nums">
+                                  Cards {formatCurrency(-d.liabilities, currency)}
+                                </p>
+                              )}
                             </div>
                           );
                         }}

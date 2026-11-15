@@ -34,6 +34,14 @@ export type AssetEntry = {
   currency: string;
 };
 
+/** Local calendar date for "now", used as the as-of point for current totals. */
+export function todayKey(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function dateKey(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const parsed = new Date(value);
@@ -221,5 +229,93 @@ export function netPosition(input: {
     net: assets - liabilities,
     accounts,
     cards: outstanding,
+  };
+}
+
+export type SeriesPoint = {
+  date: string;
+  assets: number;
+  liabilities: number;
+  net: number;
+};
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * One point per snapshot. Liabilities are the latest statement on or before that
+ * date. Pass categoryId for a single account: only its assets and its cards.
+ */
+export function seriesAtDates(input: {
+  points: { date: string; entries: AssetEntry[] }[];
+  cards: CardRef[];
+  statements: DatedStatement[];
+  displayCurrency: string;
+  exchangeRates: ExchangeRates | null;
+  categoryId?: string;
+}): SeriesPoint[] {
+  const { points, cards, statements, displayCurrency, exchangeRates, categoryId } = input;
+  const scopedCards = categoryId
+    ? cards.filter((card) => card.category_id === categoryId)
+    : cards;
+
+  return points.map((point) => {
+    const entries = categoryId
+      ? point.entries.filter((entry) => entry.category_id === categoryId)
+      : point.entries;
+    const position = netPosition({
+      entries,
+      cards: scopedCards,
+      statements,
+      displayCurrency,
+      exchangeRates,
+      asOf: dateKey(point.date),
+    });
+    return {
+      date: dateKey(point.date),
+      assets: roundMoney(position.assets),
+      liabilities: roundMoney(position.liabilities),
+      net: roundMoney(position.net),
+    };
+  });
+}
+
+export type AllocationSlice = {
+  categoryId: string;
+  value: number;
+};
+
+/**
+ * Donut slices are gross assets by account. A negative slice cannot represent
+ * a card, so liabilities and net are returned beside the slices.
+ */
+export function assetAllocation(input: {
+  entries: AssetEntry[];
+  cards: CardRef[];
+  statements: DatedStatement[];
+  displayCurrency: string;
+  exchangeRates: ExchangeRates | null;
+  asOf?: string;
+}): {
+  slices: AllocationSlice[];
+  assets: number;
+  liabilities: number;
+  net: number;
+} {
+  const position = netPosition(input);
+  const slices = position.accounts
+    .filter((account) => account.assets > 0)
+    .map((account) => ({
+      categoryId: account.categoryId,
+      value: roundMoney(account.assets),
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  return {
+    slices,
+    assets: roundMoney(position.assets),
+    liabilities: roundMoney(position.liabilities),
+    net: roundMoney(position.net),
   };
 }

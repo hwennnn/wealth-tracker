@@ -293,6 +293,28 @@ const AuthenticatedApp = () => {
     setStatements((prev) => prev.filter((statement) => statement.id !== id));
   };
 
+  const handleAddStatements = async (inputs: StatementInput[]) => {
+    if (!userId || inputs.length === 0) return;
+    const { data, error } = await supabase
+      .from("credit_card_statements")
+      .insert(
+        inputs.map((input) => ({
+          credit_card_id: input.credit_card_id,
+          statement_date: input.statement_date,
+          period_start: input.period_start ?? null,
+          balance_owed: input.balance_owed,
+          due_date: input.due_date ?? null,
+          minimum_payment: input.minimum_payment ?? null,
+          currency: input.currency,
+          notes: input.notes ?? null,
+          user_id: userId,
+        }))
+      )
+      .select();
+    if (error) throw error;
+    setStatements((prev) => [...prev, ...(data || []).map(normalizeStatement)]);
+  };
+
   // Bulk entry creation
   const handleAddEntries = async (
     entries: {
@@ -660,7 +682,12 @@ const AuthenticatedApp = () => {
             <NewEntry
               categories={categories}
               currencies={currencies}
+              cards={creditCards}
+              displayCurrency={displayCurrency}
+              exchangeRates={exchangeRates}
               onAddEntries={handleAddEntries}
+              onAddStatements={handleAddStatements}
+              onAddCard={handleAddCard}
             />
           </Layout>
         }

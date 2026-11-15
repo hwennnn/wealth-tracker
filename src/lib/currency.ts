@@ -68,7 +68,7 @@ export function formatCurrency(
     style: "currency",
     currency: currencyCode,
     maximumFractionDigits: compact ? 0 : 2,
-    minimumFractionDigits: compact ? 0 : 0,
+    minimumFractionDigits: compact ? 0 : 2,
     notation: compact && Math.abs(amount) >= 10000 ? "compact" : "standard",
   }).format(amount);
 }
