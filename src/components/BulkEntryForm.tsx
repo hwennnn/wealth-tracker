@@ -180,15 +180,12 @@ const BulkEntryForm = ({
                   key={row.id}
                   className="grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_1fr_40px] gap-2 items-start p-3 sm:p-0 rounded-lg sm:rounded-none bg-muted/30 sm:bg-transparent"
                 >
-                  <div className="relative">
-                    {card && (
-                      <CreditCard className="pointer-events-none absolute left-2.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    )}
+                  <div>
                     <Select
                       value={row.categoryId}
                       onValueChange={(v) => updateRow(row.id, "categoryId", v)}
                     >
-                      <SelectTrigger className={cn("h-9 text-sm", card && "pl-8")}>
+                      <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
                       <SelectContent>
