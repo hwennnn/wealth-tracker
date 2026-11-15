@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Category } from "@/lib/types";
-import { Pencil, Tag, Trash2 } from "lucide-react"; // Added Tag icon
+import { isCreditCard, orderCategories } from "@/lib/netWorth";
+import { CreditCard, Pencil, Tag, Trash2 } from "lucide-react";
 
 type CategoryListProps = {
   categories: Category[];
@@ -28,28 +29,32 @@ const CategoryList = ({ categories, onEdit, onDelete }: CategoryListProps) => {
           <div className="space-y-3">
             {" "}
             {/* Increased spacing */}
-            {categories
-              .filter((category) => category !== undefined)
-              .map((category) => (
+            {orderCategories(categories.filter((category) => category !== undefined)).map(
+              (category) => (
                 <div
                   key={category.id}
                   className="flex items-center justify-between p-4 bg-muted/40 border rounded-lg hover:bg-muted/80 transition-colors duration-150" /* Adjusted padding, background, added hover effect */
                 >
-                  <div className="flex items-center space-x-3">
-                    {" "}
-                    {/* Added icon container */}
-                    <Tag className="h-5 w-5 text-primary" />{" "}
-                    {/* Added category icon */}
-                    <div>
-                      <h3 className="font-semibold">{category.name}</h3>{" "}
-                      {/* Increased font weight */}
-                      {category.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {" "}
-                          {/* Added margin-top */}
-                          {category.description}
-                        </p>
-                      )}
+                  <div className="flex items-center space-x-3 min-w-0">
+                    {isCreditCard(category) ? (
+                      <CreditCard className="h-5 w-5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <Tag className="h-5 w-5 text-primary shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="font-semibold truncate">{category.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-1 truncate">
+                        {isCreditCard(category)
+                          ? `Credit card${
+                              category.parent_id
+                                ? ` · ${
+                                    categories.find((item) => item.id === category.parent_id)?.name ??
+                                    "linked bank"
+                                  }`
+                                : ""
+                            }`
+                          : category.description || "Asset"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex space-x-2">

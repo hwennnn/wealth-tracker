@@ -4,10 +4,14 @@ export type Currency = {
   symbol: string;
 };
 
+export type CategoryKind = "asset" | "credit_card";
+
 export type Category = {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
+  kind?: CategoryKind;
+  parent_id?: string | null;
   created_at: string;
   user_id: string;
 };
@@ -45,48 +49,4 @@ export type BulkEntryRow = {
   amount: string;
   currencyCode: string;
   notes: string;
-};
-
-/** A credit card attached to one account (category). */
-export type CreditCard = {
-  id: string;
-  category_id: string;
-  name: string;
-  currency: string;
-  notes?: string | null;
-  user_id: string;
-  created_at: string;
-};
-
-export type CreditCardInput = {
-  category_id: string;
-  name: string;
-  currency: string;
-  notes?: string | null;
-};
-
-/** One statement. balance_owed is a positive amount still owed. */
-export type CreditCardStatement = {
-  id: string;
-  credit_card_id: string;
-  statement_date: string;
-  period_start?: string | null;
-  balance_owed: number;
-  due_date?: string | null;
-  minimum_payment?: number | null;
-  currency: string;
-  notes?: string | null;
-  user_id: string;
-  created_at: string;
-};
-
-export type StatementInput = {
-  credit_card_id: string;
-  statement_date: string;
-  period_start?: string | null;
-  balance_owed: number;
-  due_date?: string | null;
-  minimum_payment?: number | null;
-  currency: string;
-  notes?: string | null;
 };

@@ -19,7 +19,7 @@ A personal net worth tracker with multi-currency support, interactive charts, an
 - **Dark mode** — Light, dark, and system theme support
 - **Configurable display currency** — Switch your display currency anytime from the header
 - **Guided onboarding** — New users get a category selection flow to get started quickly
-- **Credit cards** — Attach one or more cards to an account and record statements. Net worth subtracts the latest balance owed on each card
+- **Credit cards** — A credit card is a category. Its snapshot amount is the balance owed, and net worth subtracts it
 - **Edit entries** — Update any asset entry directly from the entries view
 - **Mobile responsive** — Works on desktop, tablet, and mobile
 - **Social auth** — Sign in with email, Google, or GitHub via Clerk
@@ -121,7 +121,6 @@ src/
 ├── pages/
 │   ├── Auth             # Sign in/up page (Clerk)
 │   ├── Categories       # Category CRUD
-│   ├── Cards            # Credit cards and statements per account
 │   ├── Dashboard        # Main dashboard
 │   ├── Entries          # Entry list + edit + delete
 │   ├── NewEntry         # Bulk entry creation

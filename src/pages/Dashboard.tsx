@@ -5,19 +5,11 @@ import CategoryTrends from "@/components/CategoryTrends";
 import AccountBreakdown from "@/components/AccountBreakdown";
 import GoalDialog from "@/components/GoalDialog";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Category,
-  CreditCard,
-  CreditCardStatement,
-  Entry,
-  ExchangeRates,
-  TimelineEntry,
-} from "@/lib/types";
-import { ArrowRight, CreditCard as CreditCardIcon, Download, Plus, Tag } from "lucide-react";
+import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { ArrowRight, Download, Plus, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/currency";
-import { netPosition, todayKey } from "@/lib/netWorth";
+import { netPosition } from "@/lib/netWorth";
 import {
   WealthGoal,
   getGoals,
@@ -35,9 +27,6 @@ type DashboardProps = {
   categories: Category[];
   exchangeRates: ExchangeRates | null;
   allEntries: Entry[];
-  cards: CreditCard[];
-  statements: CreditCardStatement[];
-  cardsUnavailable?: boolean;
   suppressMilestones?: boolean;
 };
 
@@ -49,9 +38,6 @@ const Dashboard = ({
   categories,
   exchangeRates,
   allEntries,
-  cards,
-  statements,
-  cardsUnavailable,
   suppressMilestones,
 }: DashboardProps) => {
   const navigate = useNavigate();
@@ -63,14 +49,11 @@ const Dashboard = ({
     () =>
       netPosition({
         entries: latestEntries,
-        cards,
-        statements,
+        categories,
         displayCurrency,
         exchangeRates,
-        asOf: todayKey(),
-        categoryOrder: categories.map((category) => category.id),
       }),
-    [latestEntries, cards, statements, displayCurrency, exchangeRates, categories]
+    [latestEntries, categories, displayCurrency, exchangeRates]
   );
 
   // Milestones and the headline use net worth after the latest statement on each card.
@@ -96,7 +79,7 @@ const Dashboard = ({
     toast.success("Data exported successfully");
   };
 
-  if (timelineEntries.length === 0 && cards.length === 0) {
+  if (timelineEntries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center px-4">
         <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
@@ -178,8 +161,6 @@ const Dashboard = ({
             exchangeRates={exchangeRates}
             timelineEntries={timelineEntries}
             goals={goals}
-            cards={cards}
-            statements={statements}
           />
         </div>
         <div className="lg:col-span-8">
@@ -189,27 +170,13 @@ const Dashboard = ({
             currency={displayCurrency}
             categories={categories}
             exchangeRates={exchangeRates}
-            cards={cards}
-            statements={statements}
           />
         </div>
       </div>
 
-      {cardsUnavailable && (
-        <Alert>
-          <CreditCardIcon className="h-4 w-4" />
-          <AlertTitle>Credit cards are not in the database yet</AlertTitle>
-          <AlertDescription>
-            Net worth is still assets only until{" "}
-            <span className="font-medium">deploy/migrations/002_credit_cards.sql</span> is applied.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <AccountBreakdown
         accounts={position.accounts}
         categories={categories}
-        cards={cards}
         currency={displayCurrency}
       />
 
@@ -219,8 +186,6 @@ const Dashboard = ({
         categories={categories}
         currency={displayCurrency}
         exchangeRates={exchangeRates}
-        cards={cards}
-        statements={statements}
       />
     </div>
   );

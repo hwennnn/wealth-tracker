@@ -44,18 +44,16 @@ Schema changes after the first boot have to be applied by hand with psql, becaus
 
 ## Migrations
 
-SQL files in `migrations/` are for a database that already has data. `init/` is only for an empty volume, and it includes the same credit-card SQL as `migrations/002_credit_cards.sql`. Pushing the frontend does not apply these files. The database is not managed by Coolify.
+SQL files in `migrations/` are for a database that already has data. `init/01-schema.sh` is only for an empty volume. Pushing the frontend does not apply these files.
 
-Copy the file onto the VPS, then apply it from `~/wealth-tracker-db`:
+`003_category_kind.sql` adds `categories.kind` (`asset` or `credit_card`) and optional `categories.parent_id` (the bank a card belongs to). If `credit_cards` / `credit_card_statements` exist, it copies them into categories and entries, then drops those tables. It is safe to re-run.
+
+Apply this **before** using the frontend that reads `kind`. The previous frontend ignores the new columns, so the migration can land first. If the new frontend is deployed first, category loads fail until this runs.
 
 ```bash
-scp deploy/migrations/002_credit_cards.sql houman-vps:~/wealth-tracker-db/migrations/002_credit_cards.sql
+scp deploy/migrations/003_category_kind.sql houman-vps:~/wealth-tracker-db/migrations/003_category_kind.sql
 
-ssh houman-vps
-cd ~/wealth-tracker-db
-mkdir -p migrations
-docker compose exec -T db psql -U postgres -d wealth -v ON_ERROR_STOP=1 < migrations/002_credit_cards.sql
-docker compose exec -T db psql -U postgres -d wealth -c "NOTIFY pgrst, 'reload schema';"
+ssh houman-vps 'cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -v ON_ERROR_STOP=1 < migrations/003_category_kind.sql'
+
+ssh houman-vps "cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -c \"NOTIFY pgrst, 'reload schema';\""
 ```
-
-`./scripts/apply-migration.sh migrations/002_credit_cards.sql` runs those two commands. The migration is safe to re-run. It does not modify existing category or entry rows.

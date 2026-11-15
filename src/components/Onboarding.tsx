@@ -28,7 +28,7 @@ const SUGGESTED_CATEGORIES = [
   { name: "Crypto", desc: "Bitcoin, Ethereum, etc.", icon: Bitcoin },
   { name: "Property", desc: "Real estate value", icon: Home },
   { name: "CPF/Retirement", desc: "Retirement funds", icon: Landmark },
-  { name: "Credit Card", desc: "Prefer the Cards page for balances owed", icon: CreditCard },
+  { name: "Credit Card", desc: "Balance owed — set type to Credit card", icon: CreditCard },
   { name: "Vehicle", desc: "Car or vehicle value", icon: Car },
 ];
 

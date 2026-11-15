@@ -11,17 +11,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { CategoryDraft } from "@/components/CategoryForm";
 import { Category } from "@/lib/types";
 import { useState } from "react";
 
 type CategoriesProps = {
   categories: Category[];
-  onAddCategory: (name: string, description: string) => Promise<void>;
-  onUpdateCategory: (
-    id: string,
-    name: string,
-    description: string
-  ) => Promise<void>;
+  onAddCategory: (draft: CategoryDraft) => Promise<void>;
+  onUpdateCategory: (id: string, draft: CategoryDraft) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
 };
 
@@ -37,12 +34,12 @@ const Categories = ({
     null
   );
 
-  const handleFormSubmit = async (name: string, description: string) => {
+  const handleFormSubmit = async (draft: CategoryDraft) => {
     if (editingCategory) {
-      await onUpdateCategory(editingCategory.id, name, description);
+      await onUpdateCategory(editingCategory.id, draft);
       setEditingCategory(null);
     } else {
-      await onAddCategory(name, description);
+      await onAddCategory(draft);
     }
   };
 
@@ -51,16 +48,21 @@ const Categories = ({
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Categories</h2>
         <p className="text-sm text-muted-foreground">
-          Organize your assets into categories
+          Assets and credit cards. A card's amount is the balance owed.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-3">
           <CategoryForm
+            key={editingCategory?.id ?? "new"}
+            categories={categories}
+            editingId={editingCategory?.id}
             onSubmit={handleFormSubmit}
             initialName={editingCategory?.name || ""}
             initialDescription={editingCategory?.description || ""}
+            initialKind={editingCategory?.kind === "credit_card" ? "credit_card" : "asset"}
+            initialParentId={editingCategory?.parent_id}
             buttonText={editingCategory ? "Update Category" : "Create Category"}
           />
           {editingCategory && (

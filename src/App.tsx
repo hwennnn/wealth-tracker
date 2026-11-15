@@ -18,20 +18,9 @@ import { createClerkSupabaseClient } from "./integrations/supabase/client";
 import { currencies } from "./lib/currencyData";
 import { fetchExchangeRates, getDisplayCurrency } from "./lib/currency";
 import { migrateUserData } from "./lib/auth";
-import {
-  Category,
-  CreditCard,
-  CreditCardInput,
-  CreditCardStatement,
-  Entry,
-  ExchangeRates,
-  StatementInput,
-  TimelineEntry,
-} from "./lib/types";
-import { asAmount } from "./lib/netWorth";
+import { Category, CategoryKind, Entry, ExchangeRates, TimelineEntry } from "./lib/types";
 import Auth from "./pages/Auth";
 import Categories from "./pages/Categories";
-import CardsPage from "./pages/Cards";
 import Dashboard from "./pages/Dashboard";
 import DemoApp from "./demo/DemoApp";
 import Entries from "./pages/Entries";
@@ -81,26 +70,6 @@ function isDemoRequest() {
   );
 }
 
-function isMissingCardsTable(error: { code?: string; message?: string } | null) {
-  if (!error) return false;
-  const message = error.message ?? "";
-  return (
-    error.code === "PGRST205" ||
-    /schema cache/i.test(message) ||
-    /credit_cards/i.test(message) ||
-    /does not exist/i.test(message)
-  );
-}
-
-function normalizeStatement(row: CreditCardStatement): CreditCardStatement {
-  return {
-    ...row,
-    balance_owed: asAmount(row.balance_owed),
-    minimum_payment:
-      row.minimum_payment == null ? null : asAmount(row.minimum_payment),
-  };
-}
-
 const AuthenticatedApp = () => {
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -113,9 +82,6 @@ const AuthenticatedApp = () => {
   );
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
-  const [statements, setStatements] = useState<CreditCardStatement[]>([]);
-  const [cardsUnavailable, setCardsUnavailable] = useState(false);
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
   const [latestEntries, setLatestEntries] = useState<Entry[]>([]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
@@ -141,32 +107,54 @@ const AuthenticatedApp = () => {
   };
 
   // Category CRUD
-  const handleAddCategory = async (name: string, description: string) => {
+  const handleAddCategory = async (draft: {
+    name: string;
+    description: string;
+    kind: CategoryKind;
+    parentId: string | null;
+  }) => {
     if (!userId) return;
     const { data, error } = await supabase
       .from("categories")
-      .insert([{ name, description, user_id: userId }])
+      .insert([
+        {
+          name: draft.name,
+          description: draft.description,
+          kind: draft.kind,
+          parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+          user_id: userId,
+        },
+      ])
       .select()
       .single();
     if (error) throw error;
-    setCategories((prev) => [...prev, data]);
+    setCategories((prev) => [...prev, data as Category]);
   };
 
   const handleUpdateCategory = async (
     id: string,
-    name: string,
-    description: string
+    draft: {
+      name: string;
+      description: string;
+      kind: CategoryKind;
+      parentId: string | null;
+    }
   ) => {
     if (!userId) return;
     const { data, error } = await supabase
       .from("categories")
-      .update({ name, description })
+      .update({
+        name: draft.name,
+        description: draft.description,
+        kind: draft.kind,
+        parent_id: draft.kind === "credit_card" ? draft.parentId : null,
+      })
       .eq("id", id)
       .eq("user_id", userId)
       .select()
       .single();
     if (error) throw error;
-    setCategories((prev) => prev.map((c) => (c.id === id ? data : c)));
+    setCategories((prev) => prev.map((c) => (c.id === id ? (data as Category) : c)));
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -177,142 +165,11 @@ const AuthenticatedApp = () => {
       .eq("id", id)
       .eq("user_id", userId);
     if (error) throw error;
-    const removedCardIds = creditCards
-      .filter((card) => card.category_id === id)
-      .map((card) => card.id);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    setCreditCards((prev) => prev.filter((card) => card.category_id !== id));
-    setStatements((prev) =>
-      prev.filter((statement) => !removedCardIds.includes(statement.credit_card_id))
+    setCategories((prev) =>
+      prev
+        .filter((c) => c.id !== id)
+        .map((c) => (c.parent_id === id ? { ...c, parent_id: null } : c))
     );
-  };
-
-  const handleAddCard = async (input: CreditCardInput) => {
-    if (!userId) return;
-    const { data, error } = await supabase
-      .from("credit_cards")
-      .insert([
-        {
-          category_id: input.category_id,
-          name: input.name,
-          currency: input.currency,
-          notes: input.notes ?? null,
-          user_id: userId,
-        },
-      ])
-      .select()
-      .single();
-    if (error) throw error;
-    setCreditCards((prev) => [...prev, data]);
-  };
-
-  const handleUpdateCard = async (id: string, input: CreditCardInput) => {
-    if (!userId) return;
-    const { data, error } = await supabase
-      .from("credit_cards")
-      .update({
-        category_id: input.category_id,
-        name: input.name,
-        currency: input.currency,
-        notes: input.notes ?? null,
-      })
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select()
-      .single();
-    if (error) throw error;
-    setCreditCards((prev) => prev.map((card) => (card.id === id ? data : card)));
-  };
-
-  const handleDeleteCard = async (id: string) => {
-    if (!userId) return;
-    const { error } = await supabase
-      .from("credit_cards")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", userId);
-    if (error) throw error;
-    setCreditCards((prev) => prev.filter((card) => card.id !== id));
-    setStatements((prev) => prev.filter((statement) => statement.credit_card_id !== id));
-  };
-
-  const handleAddStatement = async (input: StatementInput) => {
-    if (!userId) return;
-    const { data, error } = await supabase
-      .from("credit_card_statements")
-      .insert([
-        {
-          credit_card_id: input.credit_card_id,
-          statement_date: input.statement_date,
-          period_start: input.period_start ?? null,
-          balance_owed: input.balance_owed,
-          due_date: input.due_date ?? null,
-          minimum_payment: input.minimum_payment ?? null,
-          currency: input.currency,
-          notes: input.notes ?? null,
-          user_id: userId,
-        },
-      ])
-      .select()
-      .single();
-    if (error) throw error;
-    setStatements((prev) => [...prev, normalizeStatement(data)]);
-  };
-
-  const handleUpdateStatement = async (id: string, input: StatementInput) => {
-    if (!userId) return;
-    const { data, error } = await supabase
-      .from("credit_card_statements")
-      .update({
-        statement_date: input.statement_date,
-        period_start: input.period_start ?? null,
-        balance_owed: input.balance_owed,
-        due_date: input.due_date ?? null,
-        minimum_payment: input.minimum_payment ?? null,
-        currency: input.currency,
-        notes: input.notes ?? null,
-      })
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select()
-      .single();
-    if (error) throw error;
-    setStatements((prev) =>
-      prev.map((statement) => (statement.id === id ? normalizeStatement(data) : statement))
-    );
-  };
-
-  const handleDeleteStatement = async (id: string) => {
-    if (!userId) return;
-    const { error } = await supabase
-      .from("credit_card_statements")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", userId);
-    if (error) throw error;
-    setStatements((prev) => prev.filter((statement) => statement.id !== id));
-  };
-
-  const handleAddStatements = async (inputs: StatementInput[]) => {
-    if (!userId || inputs.length === 0) return;
-    const { data, error } = await supabase
-      .from("credit_card_statements")
-      .insert(
-        inputs.map((input) => ({
-          credit_card_id: input.credit_card_id,
-          statement_date: input.statement_date,
-          period_start: input.period_start ?? null,
-          balance_owed: input.balance_owed,
-          due_date: input.due_date ?? null,
-          minimum_payment: input.minimum_payment ?? null,
-          currency: input.currency,
-          notes: input.notes ?? null,
-          user_id: userId,
-        }))
-      )
-      .select();
-    if (error) throw error;
-    setStatements((prev) => [...prev, ...(data || []).map(normalizeStatement)]);
   };
 
   // Bulk entry creation
@@ -455,41 +312,18 @@ const AuthenticatedApp = () => {
       // Run one-time migration from Supabase auth user_id to Clerk user_id
       await migrateUserData(supabase, userId);
 
-      const [catResult, entryResult, cardResult, statementResult] = await Promise.all([
+      const [catResult, entryResult] = await Promise.all([
         supabase.from("categories").select("*").eq("user_id", userId),
         supabase
           .from("entries")
           .select("*")
           .eq("user_id", userId)
           .order("date", { ascending: false }),
-        supabase.from("credit_cards").select("*").eq("user_id", userId),
-        supabase
-          .from("credit_card_statements")
-          .select("*")
-          .eq("user_id", userId)
-          .order("statement_date", { ascending: false }),
       ]);
 
       if (catResult.error)
         console.error("Error fetching categories:", catResult.error);
-      else setCategories(catResult.data || []);
-
-      if (cardResult.error) {
-        console.error("Error fetching credit cards:", cardResult.error);
-        setCreditCards([]);
-        setCardsUnavailable(isMissingCardsTable(cardResult.error));
-      } else {
-        setCreditCards(cardResult.data || []);
-        setCardsUnavailable(false);
-      }
-
-      if (statementResult.error) {
-        console.error("Error fetching statements:", statementResult.error);
-        setStatements([]);
-        if (isMissingCardsTable(statementResult.error)) setCardsUnavailable(true);
-      } else {
-        setStatements((statementResult.data || []).map(normalizeStatement));
-      }
+      else setCategories((catResult.data || []) as Category[]);
 
       if (entryResult.error) {
         console.error("Error fetching entries:", entryResult.error);
@@ -542,7 +376,7 @@ const AuthenticatedApp = () => {
       .insert(rows)
       .select();
     if (error) throw error;
-    setCategories(data || []);
+    setCategories((data || []) as Category[]);
     toast.success(`Created ${cats.length} categories!`);
   };
 
@@ -633,9 +467,6 @@ const AuthenticatedApp = () => {
               categories={categories}
               exchangeRates={exchangeRates}
               allEntries={timelineEntries.flatMap((t) => t.entries)}
-              cards={creditCards}
-              statements={statements}
-              cardsUnavailable={cardsUnavailable}
             />
           </Layout>
         }
@@ -654,40 +485,13 @@ const AuthenticatedApp = () => {
         }
       />
       <Route
-        path="/cards"
-        element={
-          <Layout onLogout={handleLogout} onCurrencyChange={handleCurrencyChange}>
-            <CardsPage
-              categories={categories}
-              latestEntries={latestEntries}
-              cards={creditCards}
-              statements={statements}
-              displayCurrency={displayCurrency}
-              exchangeRates={exchangeRates}
-              cardsUnavailable={cardsUnavailable}
-              onAddCard={handleAddCard}
-              onUpdateCard={handleUpdateCard}
-              onDeleteCard={handleDeleteCard}
-              onAddStatement={handleAddStatement}
-              onUpdateStatement={handleUpdateStatement}
-              onDeleteStatement={handleDeleteStatement}
-            />
-          </Layout>
-        }
-      />
-      <Route
         path="/new-entry"
         element={
           <Layout onLogout={handleLogout} onCurrencyChange={handleCurrencyChange}>
             <NewEntry
               categories={categories}
               currencies={currencies}
-              cards={creditCards}
-              displayCurrency={displayCurrency}
-              exchangeRates={exchangeRates}
               onAddEntries={handleAddEntries}
-              onAddStatements={handleAddStatements}
-              onAddCard={handleAddCard}
             />
           </Layout>
         }
@@ -704,8 +508,6 @@ const AuthenticatedApp = () => {
               displayCurrency={displayCurrency}
               categories={categories}
               exchangeRates={exchangeRates}
-              cards={creditCards}
-              statements={statements}
             />
           </Layout>
         }

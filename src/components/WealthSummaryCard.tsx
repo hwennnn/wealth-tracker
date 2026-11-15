@@ -4,10 +4,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { dateKey, netPosition, todayKey } from "@/lib/netWorth";
-import { TrendingUp, TrendingDown, Minus, Target, CreditCard as CreditCardIcon } from "lucide-react";
+import { isCreditCard, netPosition } from "@/lib/netWorth";
+import { TrendingUp, TrendingDown, Minus, Target, CreditCard } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { WealthGoal } from "@/lib/goals";
 
@@ -19,8 +19,6 @@ type WealthSummaryProps = {
   exchangeRates: ExchangeRates | null;
   timelineEntries: TimelineEntry[];
   goals: WealthGoal[];
-  cards: CreditCard[];
-  statements: CreditCardStatement[];
 };
 
 const WealthSummaryCard = ({
@@ -30,21 +28,14 @@ const WealthSummaryCard = ({
   exchangeRates,
   timelineEntries,
   goals,
-  cards,
-  statements,
 }: WealthSummaryProps) => {
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-  const cardMap = new Map(cards.map((card) => [card.id, card]));
-  const categoryOrder = categories.map((category) => category.id);
 
   const current = netPosition({
     entries,
-    cards,
-    statements,
+    categories,
     displayCurrency: currency,
     exchangeRates,
-    categoryOrder,
-    asOf: todayKey(),
   });
 
   const convertEntry = (amount: number, from: string) => {
@@ -57,7 +48,6 @@ const WealthSummaryCard = ({
     convertedAmount: convertEntry(entry.amount, entry.currency),
   }));
 
-  // Month-over-month change compares net worth, after cards outstanding on each date.
   const sorted = [...timelineEntries].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -65,12 +55,9 @@ const WealthSummaryCard = ({
   const previous = previousTimeline
     ? netPosition({
         entries: previousTimeline.entries,
-        cards,
-        statements,
+        categories,
         displayCurrency: currency,
         exchangeRates,
-        asOf: dateKey(previousTimeline.date),
-        categoryOrder,
       })
     : null;
 
@@ -80,7 +67,6 @@ const WealthSummaryCard = ({
     previous && previous.net !== 0
       ? ((convertedTotal - previous.net) / previous.net) * 100
       : null;
-  const billedCards = current.cards.filter((card) => card.statementId);
 
   // Active goal
   const activeGoal = goals[0] || null;
@@ -152,9 +138,7 @@ const WealthSummaryCard = ({
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            {entries.length} asset{entries.length !== 1 ? "s" : ""}
-            {billedCards.length > 0 &&
-              ` · ${billedCards.length} card${billedCards.length !== 1 ? "s" : ""}`}
+            {entries.length} row{entries.length !== 1 ? "s" : ""}
           </p>
         </div>
 
@@ -173,68 +157,47 @@ const WealthSummaryCard = ({
             <Progress value={goalProgress} className="h-1.5" />
             <p className="text-xs text-muted-foreground">
               {goalProgress.toFixed(0)}% of net worth
-              {current.liabilities > 0 ? ", after cards" : ""}
             </p>
           </div>
         )}
 
         {/* Asset breakdown */}
         <div className="space-y-1">
-          {convertedEntries.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0"
-            >
-              <div className="min-w-0 flex-1 mr-3">
-                <p className="text-sm font-medium truncate">
-                  {categoryMap.get(entry.category_id) || "Uncategorized"}
-                </p>
-                {entry.notes && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {entry.notes}
-                  </p>
-                )}
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-sm font-semibold tabular-nums">
-                  {formatCurrency(entry.convertedAmount, currency)}
-                </p>
-                {entry.currency !== currency && (
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatCurrency(entry.amount, entry.currency)}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {billedCards.length > 0 && (
-          <div className="space-y-1 pt-1">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-              <CreditCardIcon className="h-3.5 w-3.5" />
-              Credit cards
-            </p>
-            {billedCards.map((outstanding) => (
+          {convertedEntries.map((entry) => {
+            const card = isCreditCard(
+              categories.find((category) => category.id === entry.category_id)
+            );
+            const shown = card ? -entry.convertedAmount : entry.convertedAmount;
+            return (
               <div
-                key={outstanding.cardId}
+                key={entry.id}
                 className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0"
               >
                 <div className="min-w-0 flex-1 mr-3">
-                  <p className="text-sm font-medium truncate">
-                    {cardMap.get(outstanding.cardId)?.name || "Card"}
+                  <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                    {card && <CreditCard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                    <span className="truncate">
+                      {categoryMap.get(entry.category_id) || "Uncategorized"}
+                    </span>
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {categoryMap.get(outstanding.categoryId) || "Account"}
-                  </p>
+                  {entry.notes && (
+                    <p className="text-xs text-muted-foreground truncate">{entry.notes}</p>
+                  )}
                 </div>
-                <p className="text-sm font-semibold tabular-nums text-red-500">
-                  {formatCurrency(-outstanding.convertedAmount, currency)}
-                </p>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
+                    {formatCurrency(shown, currency)}
+                  </p>
+                  {entry.currency !== currency && (
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      {formatCurrency(card ? -entry.amount : entry.amount, entry.currency)}
+                    </p>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

@@ -5,9 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { formatCurrency } from "@/lib/currency";
-import { assetAllocation, seriesAtDates, todayKey } from "@/lib/netWorth";
+import { assetAllocation, seriesAtDates } from "@/lib/netWorth";
 import { format, subMonths } from "date-fns";
 import {
   Area,
@@ -32,8 +32,6 @@ type WealthChartProps = {
   currency: string;
   categories: Category[];
   exchangeRates: ExchangeRates | null;
-  cards: CreditCard[];
-  statements: CreditCardStatement[];
 };
 
 const COLORS = [
@@ -66,12 +64,9 @@ const WealthChart = ({
   currency,
   categories,
   exchangeRates,
-  cards,
-  statements,
 }: WealthChartProps) => {
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-  const asOfToday = todayKey();
 
   const now = new Date();
   const rangeStart =
@@ -92,8 +87,7 @@ const WealthChart = ({
       date: timeline.date,
       entries: timeline.entries,
     })),
-    cards,
-    statements,
+    categories,
     displayCurrency: currency,
     exchangeRates,
   })
@@ -108,11 +102,9 @@ const WealthChart = ({
 
   const allocation = assetAllocation({
     entries: latestEntries,
-    cards,
-    statements,
+    categories,
     displayCurrency: currency,
     exchangeRates,
-    asOf: asOfToday,
   });
   const latestLiabilities = allocation.liabilities;
 
@@ -187,7 +179,7 @@ const WealthChart = ({
               </CardTitle>
               <CardDescription>
                 {latestLiabilities > 0
-                  ? "Net worth over time. A card balance counts from its statement date."
+                  ? "Net worth over time, after credit card balances on each snapshot."
                   : "Net worth over time"}
               </CardDescription>
             </div>

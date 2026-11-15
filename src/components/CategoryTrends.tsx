@@ -5,9 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, CreditCard, CreditCardStatement, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, ExchangeRates, TimelineEntry } from "@/lib/types";
 import { formatCurrency } from "@/lib/currency";
-import { seriesAtDates } from "@/lib/netWorth";
+import { isCreditCard, orderCategories, seriesAtDates } from "@/lib/netWorth";
 import { format } from "date-fns";
 import {
   Area,
@@ -34,8 +34,6 @@ type CategoryTrendsProps = {
   categories: Category[];
   currency: string;
   exchangeRates: ExchangeRates | null;
-  cards: CreditCard[];
-  statements: CreditCardStatement[];
 };
 
 const CategoryTrends = ({
@@ -43,8 +41,6 @@ const CategoryTrends = ({
   categories,
   currency,
   exchangeRates,
-  cards,
-  statements,
 }: CategoryTrendsProps) => {
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
   const sorted = [...timelineEntries].sort(
@@ -54,22 +50,23 @@ const CategoryTrends = ({
     date: timeline.date,
     entries: timeline.entries,
   }));
+  const linkedParents = new Set(
+    categories
+      .filter((category) => isCreditCard(category) && category.parent_id)
+      .map((category) => category.parent_id as string)
+  );
 
-  const activeCategoryIds = new Set<string>();
-  for (const timeline of timelineEntries) {
-    for (const entry of timeline.entries) activeCategoryIds.add(entry.category_id);
-  }
-  for (const card of cards) activeCategoryIds.add(card.category_id);
-
-  const categoryTrends = Array.from(activeCategoryIds).map((catId) => {
-    const hasCards = cards.some((card) => card.category_id === catId);
+  const categoryTrends = orderCategories(categories).flatMap((category) => {
+    const parent = category.parent_id
+      ? categories.find((item) => item.id === category.parent_id)
+      : undefined;
+    if (isCreditCard(category) && parent && !isCreditCard(parent)) return [];
     const data = seriesAtDates({
       points,
-      cards,
-      statements,
+      categories,
       displayCurrency: currency,
       exchangeRates,
-      categoryId: catId,
+      categoryId: category.id,
     })
       .filter((point) => point.assets !== 0 || point.liabilities !== 0)
       .map((point) => ({
@@ -78,14 +75,16 @@ const CategoryTrends = ({
         assets: point.assets,
         liabilities: point.liabilities,
       }));
-
-    return {
-      categoryId: catId,
-      name: categoryMap.get(catId) || "Unknown",
-      hasCards,
-      data,
-    };
-  }).filter((trend) => trend.data.length > 0);
+    if (data.length === 0) return [];
+    return [
+      {
+        categoryId: category.id,
+        name: categoryMap.get(category.id) || "Unknown",
+        hasCards: linkedParents.has(category.id) || isCreditCard(category),
+        data,
+      },
+    ];
+  });
 
   if (categoryTrends.length === 0) {
     return null;
@@ -98,7 +97,7 @@ const CategoryTrends = ({
           Category Trends
         </CardTitle>
         <CardDescription>
-          Per account. A card balance is subtracted from its statement date.
+          Per account. Linked credit cards are included in that account's net.
         </CardDescription>
       </CardHeader>
       <CardContent>

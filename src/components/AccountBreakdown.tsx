@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -6,30 +5,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Category, CreditCard } from "@/lib/types";
+import { Category } from "@/lib/types";
 import { formatCurrency } from "@/lib/currency";
 import { AccountPosition } from "@/lib/netWorth";
-import { format } from "date-fns";
-import { CreditCard as CreditCardIcon, Landmark } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { parseDateKey } from "@/lib/netWorth";
+import { CreditCard, Landmark } from "lucide-react";
 
 type AccountBreakdownProps = {
   accounts: AccountPosition[];
   categories: Category[];
-  cards: CreditCard[];
   currency: string;
 };
 
 const AccountBreakdown = ({
   accounts,
   categories,
-  cards,
   currency,
 }: AccountBreakdownProps) => {
-  const navigate = useNavigate();
   const categoryMap = new Map(categories.map((category) => [category.id, category.name]));
-  const cardMap = new Map(cards.map((card) => [card.id, card]));
 
   if (accounts.length === 0) return null;
 
@@ -46,15 +38,6 @@ const AccountBreakdown = ({
               Assets, credit card balances, and net for each account
             </CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs gap-1.5 self-start"
-            onClick={() => navigate("/cards")}
-          >
-            <CreditCardIcon className="h-3.5 w-3.5" />
-            Manage cards
-          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -97,27 +80,20 @@ const AccountBreakdown = ({
                 </div>
                 {account.cards.length > 0 && (
                   <ul className="space-y-1.5 border-t pt-2">
-                    {account.cards.map((outstanding) => {
-                      const card = cardMap.get(outstanding.cardId);
-                      return (
-                        <li
-                          key={outstanding.cardId}
-                          className="flex items-center justify-between gap-2 text-xs"
-                        >
-                          <span className="min-w-0 truncate text-muted-foreground">
-                            {card?.name || "Card"}
-                            {outstanding.statementDate
-                              ? ` · ${format(parseDateKey(outstanding.statementDate), "dd MMM yyyy")}`
-                              : " · no statement yet"}
-                          </span>
-                          <span className="tabular-nums font-medium text-red-500 flex-shrink-0">
-                            {outstanding.statementId
-                              ? formatCurrency(-outstanding.convertedAmount, currency)
-                              : "—"}
-                          </span>
-                        </li>
-                      );
-                    })}
+                    {account.cards.map((card) => (
+                      <li
+                        key={card.categoryId}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="min-w-0 truncate text-muted-foreground flex items-center gap-1.5">
+                          <CreditCard className="h-3 w-3 shrink-0" />
+                          {categoryMap.get(card.categoryId) || "Card"}
+                        </span>
+                        <span className="tabular-nums font-medium text-red-500 flex-shrink-0">
+                          {formatCurrency(-card.amount, currency)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>

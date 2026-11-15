@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Category, CreditCard, CreditCardStatement, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
+import { Category, Entry, ExchangeRates, TimelineEntry } from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +33,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Plus, Trash2, Upload, Save, Loader2 } from "lucide-react";
 import { convertAmount, formatCurrency } from "@/lib/currency";
-import { dateKey, netPosition } from "@/lib/netWorth";
+import { isCreditCard, netPosition } from "@/lib/netWorth";
 import { parseCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
@@ -61,8 +61,6 @@ type EntriesProps = {
   displayCurrency: string;
   categories: Category[];
   exchangeRates: ExchangeRates | null;
-  cards: CreditCard[];
-  statements: CreditCardStatement[];
 };
 
 const Entries = ({
@@ -73,8 +71,6 @@ const Entries = ({
   displayCurrency,
   categories,
   exchangeRates,
-  cards,
-  statements,
 }: EntriesProps) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,12 +95,9 @@ const Entries = ({
   const positionFor = (timeline: TimelineEntry) =>
     netPosition({
       entries: timeline.entries,
-      cards,
-      statements,
+      categories,
       displayCurrency,
       exchangeRates,
-      asOf: dateKey(timeline.date),
-      categoryOrder: categories.map((category) => category.id),
     });
 
   const sorted = [...timelineEntries].sort(
@@ -308,10 +301,14 @@ const Entries = ({
           </DialogHeader>
           <div className="space-y-2 mt-2">
             {selectedEntry?.entries.map((entry) => {
+              const card = isCreditCard(
+                categories.find((category) => category.id === entry.category_id)
+              );
               const converted =
                 exchangeRates && entry.currency !== displayCurrency
                   ? convertAmount(entry.amount, entry.currency, displayCurrency, exchangeRates)
                   : entry.amount;
+              const shown = card ? -converted : converted;
               return (
                 <div
                   key={entry.id}
@@ -327,8 +324,8 @@ const Entries = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-semibold tabular-nums">
-                        {formatCurrency(converted, displayCurrency)}
+                      <p className={`text-sm font-semibold tabular-nums ${card ? "text-red-500" : ""}`}>
+                        {formatCurrency(shown, displayCurrency)}
                       </p>
                       {entry.currency !== displayCurrency && (
                         <p className="text-xs text-muted-foreground tabular-nums">
@@ -348,14 +345,6 @@ const Entries = ({
                 </div>
               );
             })}
-            {selectedEntry && positionFor(selectedEntry).liabilities > 0 && (
-              <div className="flex justify-between items-center pt-2 text-sm">
-                <span className="text-muted-foreground">Credit cards</span>
-                <span className="font-medium tabular-nums text-red-500">
-                  {formatCurrency(-positionFor(selectedEntry).liabilities, displayCurrency)}
-                </span>
-              </div>
-            )}
             <div className="flex justify-between items-center pt-2 border-t">
               <span className="text-sm font-semibold">Net</span>
               <span className="text-base font-bold text-primary tabular-nums">

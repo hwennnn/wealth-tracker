@@ -7,7 +7,6 @@ import {
   Plus,
   Tag,
   List,
-  CreditCard,
   TrendingUp,
   ChevronDown,
   Sun,
@@ -46,7 +45,6 @@ const Layout = ({ children, onCurrencyChange, demo }: LayoutProps) => {
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/categories", label: "Categories", icon: Tag },
-    { path: "/cards", label: "Cards", icon: CreditCard },
     { path: "/entries", label: "Entries", icon: List },
   ];
 

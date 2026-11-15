@@ -2,63 +2,28 @@ import { convertAmount } from "./currency";
 import type { ExchangeRates } from "./types";
 
 /**
- * Net worth rule:
- * - A statement's balance_owed is a positive liability (what is still owed).
- * - Only the latest statement on each card counts. Older statements are history,
- *   not extra debt, so they are never summed.
- * - "Latest" is the greatest statement_date, then created_at, then id.
- * - Current net worth uses that latest statement even when it falls after the
- *   last asset snapshot, because the statement is the balance owed today.
- * - A historical point on date D uses the latest statement with
- *   statement_date <= D, so a statement does not change net worth before it exists.
- * - Amounts are converted with the same USD-based rates as asset entries.
+ * A credit card is a category with kind "credit_card".
+ * Its entries are normal snapshot rows. The amount is the balance owed, stored
+ * as a positive number. Net worth on a snapshot is the asset rows minus the
+ * credit-card rows on that same snapshot. Nothing carries forward on its own.
  */
 
-export type DatedStatement = {
+export type CategoryKind = "asset" | "credit_card";
+
+export type CategoryRef = {
   id: string;
-  credit_card_id: string;
-  statement_date: string;
-  balance_owed: number | string;
-  currency: string;
-  created_at?: string | null;
+  kind?: CategoryKind | string | null;
+  parent_id?: string | null;
 };
 
-export type CardRef = {
-  id: string;
-  category_id: string;
-};
-
-export type AssetEntry = {
+export type SnapshotEntry = {
   category_id: string;
   amount: number | string;
   currency: string;
 };
 
-/** Local calendar date for "now", used as the as-of point for current totals. */
-export function todayKey(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-export function dateKey(value: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const parsed = new Date(value);
-  if (!Number.isNaN(parsed.getTime())) {
-    const y = parsed.getFullYear();
-    const m = String(parsed.getMonth() + 1).padStart(2, "0");
-    const d = String(parsed.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
-  return match?.[1] ?? value;
-}
-
-export function parseDateKey(value: string): Date {
-  const key = dateKey(value);
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
+export function isCreditCard(category?: { kind?: string | null } | null): boolean {
+  return category?.kind === "credit_card";
 }
 
 export function asAmount(value: number | string | null | undefined): number {
@@ -77,36 +42,39 @@ function toDisplay(
   return convertAmount(amount, currency, displayCurrency, rates);
 }
 
-function compareStatements(a: DatedStatement, b: DatedStatement): number {
-  const byDate = dateKey(a.statement_date).localeCompare(dateKey(b.statement_date));
-  if (byDate !== 0) return byDate;
-  const byCreated = (a.created_at ?? "").localeCompare(b.created_at ?? "");
-  if (byCreated !== 0) return byCreated;
-  return a.id.localeCompare(b.id);
-}
+/** Assets keep their current order. Each card is placed directly after its bank. */
+export function orderCategories<T extends CategoryRef>(categories: T[]): T[] {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const cardsByParent = new Map<string, T[]>();
+  const unlinked: T[] = [];
+  const assets: T[] = [];
 
-/** Latest statement for one card. `asOf` (inclusive) drops statements after that date. */
-export function latestStatement<T extends DatedStatement>(
-  statements: T[],
-  asOf?: string
-): T | null {
-  const cutoff = asOf ? dateKey(asOf) : null;
-  let best: T | null = null;
-  for (const statement of statements) {
-    if (cutoff && dateKey(statement.statement_date) > cutoff) continue;
-    if (!best || compareStatements(statement, best) > 0) best = statement;
+  for (const category of categories) {
+    if (!isCreditCard(category)) {
+      assets.push(category);
+      continue;
+    }
+    const parent = category.parent_id ? byId.get(category.parent_id) : undefined;
+    if (parent && !isCreditCard(parent)) {
+      const list = cardsByParent.get(parent.id) ?? [];
+      list.push(category);
+      cardsByParent.set(parent.id, list);
+    } else {
+      unlinked.push(category);
+    }
   }
-  return best;
+
+  const ordered: T[] = [];
+  for (const asset of assets) {
+    ordered.push(asset);
+    for (const card of cardsByParent.get(asset.id) ?? []) ordered.push(card);
+  }
+  return [...ordered, ...unlinked];
 }
 
-export type OutstandingCard = {
-  cardId: string;
+export type LinkedCard = {
   categoryId: string;
-  statementId: string | null;
-  statementDate: string | null;
-  nativeAmount: number;
-  currency: string;
-  convertedAmount: number;
+  amount: number;
 };
 
 export type AccountPosition = {
@@ -114,7 +82,7 @@ export type AccountPosition = {
   assets: number;
   liabilities: number;
   net: number;
-  cards: OutstandingCard[];
+  cards: LinkedCard[];
 };
 
 export type NetPosition = {
@@ -122,56 +90,22 @@ export type NetPosition = {
   liabilities: number;
   net: number;
   accounts: AccountPosition[];
-  cards: OutstandingCard[];
 };
 
 export function netPosition(input: {
-  entries: AssetEntry[];
-  cards: CardRef[];
-  statements: DatedStatement[];
+  entries: SnapshotEntry[];
+  categories: CategoryRef[];
   displayCurrency: string;
   exchangeRates: ExchangeRates | null;
-  /** Only statements on or before this date count. Omit for the current balance. */
-  asOf?: string;
-  /** Preferred account order. Accounts with neither assets nor cards are skipped. */
-  categoryOrder?: string[];
 }): NetPosition {
-  const {
-    entries,
-    cards,
-    statements,
-    displayCurrency,
-    exchangeRates,
-    asOf,
-    categoryOrder,
-  } = input;
-
-  const byCard = new Map<string, DatedStatement[]>();
-  for (const statement of statements) {
-    const list = byCard.get(statement.credit_card_id);
-    if (list) list.push(statement);
-    else byCard.set(statement.credit_card_id, [statement]);
-  }
-
-  const outstanding: OutstandingCard[] = cards.map((card) => {
-    const latest = latestStatement(byCard.get(card.id) ?? [], asOf);
-    const nativeAmount = latest ? asAmount(latest.balance_owed) : 0;
-    const currency = latest?.currency || "";
-    return {
-      cardId: card.id,
-      categoryId: card.category_id,
-      statementId: latest?.id ?? null,
-      statementDate: latest ? dateKey(latest.statement_date) : null,
-      nativeAmount,
-      currency,
-      convertedAmount: latest
-        ? toDisplay(nativeAmount, currency, displayCurrency, exchangeRates)
-        : 0,
-    };
-  });
-
+  const { entries, categories, displayCurrency, exchangeRates } = input;
+  const byId = new Map(categories.map((category) => [category.id, category]));
   const assetsByCategory = new Map<string, number>();
+  const cardsByParent = new Map<string, LinkedCard[]>();
+  const unlinked = new Map<string, number>();
   let assets = 0;
+  let liabilities = 0;
+
   for (const entry of entries) {
     const converted = toDisplay(
       asAmount(entry.amount),
@@ -179,57 +113,57 @@ export function netPosition(input: {
       displayCurrency,
       exchangeRates
     );
-    assets += converted;
-    assetsByCategory.set(
-      entry.category_id,
-      (assetsByCategory.get(entry.category_id) ?? 0) + converted
-    );
+    const category = byId.get(entry.category_id);
+    if (isCreditCard(category)) {
+      liabilities += converted;
+      const parentId = category?.parent_id;
+      const parent = parentId ? byId.get(parentId) : undefined;
+      if (parent && !isCreditCard(parent)) {
+        const list = cardsByParent.get(parent.id) ?? [];
+        const existing = list.find((card) => card.categoryId === entry.category_id);
+        if (existing) existing.amount += converted;
+        else list.push({ categoryId: entry.category_id, amount: converted });
+        cardsByParent.set(parent.id, list);
+      } else {
+        unlinked.set(entry.category_id, (unlinked.get(entry.category_id) ?? 0) + converted);
+      }
+    } else {
+      assets += converted;
+      assetsByCategory.set(
+        entry.category_id,
+        (assetsByCategory.get(entry.category_id) ?? 0) + converted
+      );
+    }
   }
 
-  const cardsByCategory = new Map<string, OutstandingCard[]>();
-  let liabilities = 0;
-  for (const card of outstanding) {
-    liabilities += card.convertedAmount;
-    const list = cardsByCategory.get(card.categoryId);
-    if (list) list.push(card);
-    else cardsByCategory.set(card.categoryId, [card]);
-  }
-
-  const seen = new Set<string>();
-  const orderedIds: string[] = [];
-  const push = (id: string) => {
-    if (seen.has(id)) return;
-    if (!assetsByCategory.has(id) && !cardsByCategory.has(id)) return;
-    seen.add(id);
-    orderedIds.push(id);
-  };
-  for (const id of categoryOrder ?? []) push(id);
-  for (const id of assetsByCategory.keys()) push(id);
-  for (const id of cardsByCategory.keys()) push(id);
-
-  const accounts: AccountPosition[] = orderedIds.map((categoryId) => {
-    const accountAssets = assetsByCategory.get(categoryId) ?? 0;
-    const accountCards = cardsByCategory.get(categoryId) ?? [];
-    const accountLiabilities = accountCards.reduce(
-      (sum, card) => sum + card.convertedAmount,
-      0
-    );
-    return {
-      categoryId,
+  const accounts: AccountPosition[] = [];
+  for (const category of orderCategories(categories)) {
+    if (isCreditCard(category)) {
+      const amount = unlinked.get(category.id);
+      if (!amount) continue;
+      accounts.push({
+        categoryId: category.id,
+        assets: 0,
+        liabilities: amount,
+        net: -amount,
+        cards: [],
+      });
+      continue;
+    }
+    const accountAssets = assetsByCategory.get(category.id) ?? 0;
+    const cards = cardsByParent.get(category.id) ?? [];
+    const accountLiabilities = cards.reduce((sum, card) => sum + card.amount, 0);
+    if (accountAssets === 0 && accountLiabilities === 0) continue;
+    accounts.push({
+      categoryId: category.id,
       assets: accountAssets,
       liabilities: accountLiabilities,
       net: accountAssets - accountLiabilities,
-      cards: accountCards,
-    };
-  });
+      cards,
+    });
+  }
 
-  return {
-    assets,
-    liabilities,
-    net: assets - liabilities,
-    accounts,
-    cards: outstanding,
-  };
+  return { assets, liabilities, net: assets - liabilities, accounts };
 }
 
 export type SeriesPoint = {
@@ -239,66 +173,57 @@ export type SeriesPoint = {
   net: number;
 };
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
+function dateKey(value: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  if (match) return match[1];
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, "0");
+  const d = String(parsed.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-/**
- * One point per snapshot. Liabilities are the latest statement on or before that
- * date. Pass categoryId for a single account: only its assets and its cards.
- */
+/** Each point is that snapshot's own rows. A card balance does not leak into other dates. */
 export function seriesAtDates(input: {
-  points: { date: string; entries: AssetEntry[] }[];
-  cards: CardRef[];
-  statements: DatedStatement[];
+  points: { date: string; entries: SnapshotEntry[] }[];
+  categories: CategoryRef[];
   displayCurrency: string;
   exchangeRates: ExchangeRates | null;
   categoryId?: string;
 }): SeriesPoint[] {
-  const { points, cards, statements, displayCurrency, exchangeRates, categoryId } = input;
-  const scopedCards = categoryId
-    ? cards.filter((card) => card.category_id === categoryId)
-    : cards;
-
-  return points.map((point) => {
-    const entries = categoryId
-      ? point.entries.filter((entry) => entry.category_id === categoryId)
-      : point.entries;
+  return input.points.map((point) => {
     const position = netPosition({
-      entries,
-      cards: scopedCards,
-      statements,
-      displayCurrency,
-      exchangeRates,
-      asOf: dateKey(point.date),
+      entries: point.entries,
+      categories: input.categories,
+      displayCurrency: input.displayCurrency,
+      exchangeRates: input.exchangeRates,
     });
+    if (input.categoryId) {
+      const account = position.accounts.find((item) => item.categoryId === input.categoryId);
+      return {
+        date: dateKey(point.date),
+        assets: account?.assets ?? 0,
+        liabilities: account?.liabilities ?? 0,
+        net: account?.net ?? 0,
+      };
+    }
     return {
       date: dateKey(point.date),
-      assets: roundMoney(position.assets),
-      liabilities: roundMoney(position.liabilities),
-      net: roundMoney(position.net),
+      assets: position.assets,
+      liabilities: position.liabilities,
+      net: position.net,
     };
   });
 }
 
-export type AllocationSlice = {
-  categoryId: string;
-  value: number;
-};
-
-/**
- * Donut slices are gross assets by account. A negative slice cannot represent
- * a card, so liabilities and net are returned beside the slices.
- */
 export function assetAllocation(input: {
-  entries: AssetEntry[];
-  cards: CardRef[];
-  statements: DatedStatement[];
+  entries: SnapshotEntry[];
+  categories: CategoryRef[];
   displayCurrency: string;
   exchangeRates: ExchangeRates | null;
-  asOf?: string;
 }): {
-  slices: AllocationSlice[];
+  slices: { categoryId: string; value: number }[];
   assets: number;
   liabilities: number;
   net: number;
@@ -308,14 +233,13 @@ export function assetAllocation(input: {
     .filter((account) => account.assets > 0)
     .map((account) => ({
       categoryId: account.categoryId,
-      value: roundMoney(account.assets),
+      value: Math.round(account.assets * 100) / 100,
     }))
     .sort((a, b) => b.value - a.value);
-
   return {
     slices,
-    assets: roundMoney(position.assets),
-    liabilities: roundMoney(position.liabilities),
-    net: roundMoney(position.net),
+    assets: position.assets,
+    liabilities: position.liabilities,
+    net: position.net,
   };
 }

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Runs once, on first boot of an empty data volume.
-# Credit cards are added by 02-credit-cards.sql (same SQL as deploy/migrations/002_credit_cards.sql).
+# Credit cards are categories with kind = 'credit_card'. See deploy/migrations/003_category_kind.sql
+# for upgrading a database that already has the older credit_cards tables.
 set -e
 psql -v ON_ERROR_STOP=1 -U postgres -d wealth -v authpw="$AUTHENTICATOR_PASSWORD" <<'SQL'
 -- PostgREST roles
@@ -20,8 +21,12 @@ CREATE TABLE public.categories (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     name text NOT NULL,
     description text,
+    kind text NOT NULL DEFAULT 'asset' CHECK (kind IN ('asset', 'credit_card')),
+    parent_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
     user_id text NOT NULL,
-    created_at timestamptz DEFAULT now()
+    created_at timestamptz DEFAULT now(),
+    CHECK (parent_id IS DISTINCT FROM id),
+    CHECK (kind = 'credit_card' OR parent_id IS NULL)
 );
 
 CREATE TABLE public.entries (
@@ -36,6 +41,7 @@ CREATE TABLE public.entries (
 );
 
 CREATE INDEX idx_categories_user_id ON public.categories (user_id);
+CREATE INDEX idx_categories_parent_id ON public.categories (parent_id);
 CREATE INDEX idx_entries_category_id ON public.entries (category_id);
 CREATE INDEX idx_entries_date ON public.entries (date);
 CREATE INDEX idx_entries_user_id ON public.entries (user_id);
