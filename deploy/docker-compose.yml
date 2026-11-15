@@ -55,6 +55,37 @@ services:
       - traefik.http.middlewares.wealth-rest-strip.stripprefix.prefixes=/rest/v1
       - traefik.http.services.wealth-rest.loadbalancer.server.port=3000
 
+  # MCP server for agents (e.g. a Grok bot). Same RLS as the web app: it connects as
+  # `authenticator`, switches to web_user and sets request.jwt.claims.sub = WEALTH_USER_ID.
+  # Built from a checkout of the repo (scripts/deploy-mcp.sh). Bearer-token auth (MCP_TOKEN).
+  mcp:
+    build:
+      context: ${MCP_SRC_DIR:-../wealth-tracker-src}
+      dockerfile: mcp/Dockerfile
+    image: wealth-tracker-mcp:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@db:5432/wealth
+      WEALTH_USER_ID: ${WEALTH_USER_ID}
+      MCP_TOKEN: ${MCP_TOKEN}
+      EXCHANGE_RATE_API_KEY: ${EXCHANGE_RATE_API_KEY}
+      DEFAULT_DISPLAY_CURRENCY: ${DEFAULT_DISPLAY_CURRENCY:-SGD}
+    networks: [internal, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - "traefik.http.routers.wealth-mcp.rule=Host(`wealth.hwendev.com`) && PathPrefix(`/mcp`)"
+      - traefik.http.routers.wealth-mcp.entrypoints=https
+      - traefik.http.routers.wealth-mcp.tls=true
+      - traefik.http.routers.wealth-mcp.tls.certresolver=letsencrypt
+      - traefik.http.routers.wealth-mcp.priority=100
+      - traefik.http.routers.wealth-mcp.middlewares=wealth-mcp-strip
+      - traefik.http.middlewares.wealth-mcp-strip.stripprefix.prefixes=/mcp
+      - traefik.http.services.wealth-mcp.loadbalancer.server.port=3001
+
 volumes:
   pgdata:
 

@@ -67,3 +67,20 @@ ssh houman-vps 'cd ~/wealth-tracker-db && docker compose exec -T db psql -U post
 
 ssh houman-vps "cd ~/wealth-tracker-db && docker compose exec -T db psql -U postgres -d wealth -c \"NOTIFY pgrst, 'reload schema';\""
 ```
+
+## MCP server (for agents)
+
+`mcp/` is a Streamable HTTP MCP server at `https://wealth.hwendev.com/mcp`, so an agent (e.g. a Grok bot) can do what the dashboard does: read net worth, accounts by region and history, add or edit accounts, record snapshots, fix or delete rows.
+
+- Auth: `Authorization: Bearer $MCP_TOKEN` (in `.env`). Rotate by changing it and running `docker compose up -d mcp`.
+- Data access: it connects as `authenticator`, switches to `web_user` and sets `request.jwt.claims.sub = WEALTH_USER_ID`, so the same RLS policies as the web app apply.
+- Numbers: it imports `src/lib/netWorth.ts`, `regions.ts` and `money.ts`, so totals match the dashboard.
+- Stateless: each POST builds a fresh server. There are no sessions to lose on restart.
+
+Deploy or update (pulls main into `~/wealth-tracker-src` and rebuilds):
+
+```bash
+ssh houman-vps 'cd ~/wealth-tracker-db && ./scripts/deploy-mcp.sh'
+```
+
+Tools: `get_dashboard`, `list_accounts`, `list_snapshots`, `get_snapshot`, `get_history`, `convert_currency`, `create_account`, `update_account`, `delete_account`, `record_snapshot` (upserts per account and date), `update_entry`, `delete_entries`. The two deletes need `confirm: true`.

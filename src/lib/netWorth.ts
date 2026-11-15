@@ -1,4 +1,4 @@
-import { convertAmount } from "./currency";
+import { convertAmount } from "./money";
 import type { ExchangeRates } from "./types";
 
 /**
